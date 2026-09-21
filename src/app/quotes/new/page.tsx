@@ -16,6 +16,9 @@ import type {
 } from '@/lib/types';
 import type { OptionalTask } from '@/lib/assess/site';
 import type { PropertyLookupResult } from '@/lib/property/lookup';
+import { useDictation } from '@/lib/voice/use-dictation';
+import { looksLikeAddress, tidyAddress } from '@/lib/voice/speech';
+import { MicButton } from '@/components/mic-button';
 
 /**
  * Two inputs: an address and some photos.
@@ -188,6 +191,21 @@ export default function NewQuotePage() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Two microphones: one for the address, one for the note. Both add to what
+  // is already in the field, so speaking never wipes out what you typed.
+  const addressVoice = useDictation({
+    onTranscript: (text) => setAddressQuery(tidyAddress(text)),
+    onDone: (text) => {
+      const spoken = tidyAddress(text);
+      setAddressQuery(spoken);
+      // Say the address, get the price — the whole point of the thing. Only
+      // when it sounds like an address, so a cough cannot fire off a lookup.
+      if (looksLikeAddress(spoken)) void findProperty(spoken);
+    },
+  });
+
+  const noteVoice = useDictation({ onTranscript: setJobNote });
+
   const measurementConfidence = lookup?.confidence ?? 0;
   const conditionConfidence =
     assessment?.conditions.confidence ?? UNSEEN_CONDITION_CONFIDENCE;
@@ -220,13 +238,16 @@ export default function NewQuotePage() {
   const hasQuote = lookup !== null && measurements.lawnAreaM2 > 0;
   const ready = hasQuote && customer.name.trim() !== '';
 
-  async function findProperty() {
-    if (!addressQuery.trim()) return;
+  // Takes the address as an argument so dictation can look up what was just
+  // said without waiting a render for `addressQuery` to catch up.
+  async function findProperty(override?: string) {
+    const query = (override ?? addressQuery).trim();
+    if (!query) return;
     setLooking(true);
     setLookupError(null);
     try {
       const response = await fetch(
-        `/api/property/lookup?address=${encodeURIComponent(addressQuery)}`,
+        `/api/property/lookup?address=${encodeURIComponent(query)}`,
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error ?? 'Lookup failed');
@@ -357,15 +378,37 @@ export default function NewQuotePage() {
                 placeholder="12 Short Street, Emu Plains 2750"
                 autoFocus
               />
-              <button
-                type="button"
-                onClick={() => void findProperty()}
-                disabled={looking || !addressQuery.trim()}
-                className={`${primary} whitespace-nowrap sm:mt-1`}
-              >
-                {looking ? 'Looking…' : 'Look up'}
-              </button>
+              <div className="flex gap-2 sm:mt-1">
+                {addressVoice.supported && (
+                  <MicButton
+                    listening={addressVoice.listening}
+                    onClick={() => addressVoice.toggle(addressQuery)}
+                    title={
+                      addressVoice.listening
+                        ? 'Stop listening'
+                        : 'Say the address'
+                    }
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => void findProperty()}
+                  disabled={looking || !addressQuery.trim()}
+                  className={`${primary} flex-1 whitespace-nowrap`}
+                >
+                  {looking ? 'Looking…' : 'Look up'}
+                </button>
+              </div>
             </div>
+            {addressVoice.listening && (
+              <p className="mt-2 text-xs text-leaf">
+                Listening — say the street, suburb and postcode. It looks up on
+                its own when you stop.
+              </p>
+            )}
+            {addressVoice.error && (
+              <p className="mt-2 text-xs text-red-600">{addressVoice.error}</p>
+            )}
             {lookupError && <p className="mt-2 text-xs text-red-600">{lookupError}</p>}
 
             {lookup && (
@@ -411,6 +454,25 @@ export default function NewQuotePage() {
                 placeholder={'This one\u2019s overgrown, hasn\u2019t been done in a month. Customer wants the beds weeded, about an hour. Take the clippings. Dog in the backyard, gate code 1234.'}
               />
             </label>
+
+            {noteVoice.supported && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <MicButton
+                  listening={noteVoice.listening}
+                  onClick={() => noteVoice.toggle(jobNote)}
+                  label="Say it instead"
+                />
+                {noteVoice.listening && (
+                  <span className="text-xs text-leaf">
+                    Listening — talk normally, it keeps up. Press stop when done.
+                  </span>
+                )}
+              </div>
+            )}
+            {noteVoice.error && (
+              <p className="mt-2 text-xs text-red-600">{noteVoice.error}</p>
+            )}
+
             <p className="mt-1 text-xs text-bark/45">
               Plain words are fine. What you say beats what the photos suggest —
               you are the one who has seen it. Give a time (&ldquo;about an
