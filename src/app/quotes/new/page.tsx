@@ -524,10 +524,24 @@ export default function NewQuotePage() {
             )}
 
             {!assessment && (
-              <p className="mt-3 text-xs text-amber-800">
-                Until there is a photo or a note, conditions are assumed to be an
-                average suburban lawn — so the quote stays marked indicative.
-              </p>
+              <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                <p>
+                  Conditions are currently assumed to be an average suburban
+                  lawn, so the quote stays marked indicative.
+                </p>
+                <p className="mt-1.5">
+                  No photos handy?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setAdjusting(true)}
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Set the conditions yourself
+                  </button>{' '}
+                  — grass height, obstacles, slope and access. Four dropdowns,
+                  and the price is just as accurate.
+                </p>
+              </div>
             )}
           </section>
 
