@@ -4,14 +4,8 @@ import { card, legend, FrequencyTag } from '@/components/ui';
 import { formatMinutes, formatMoney } from '@/lib/format';
 import { addDays, formatBusinessDate } from '@/lib/dates';
 import { dueDates, estimateAccuracy, today, weeklyRecurringCents } from '@/lib/crm/schedule';
-import {
-  customerById,
-  planById,
-  plansFor,
-  propertiesFor,
-  propertyById,
-  visitsFor,
-} from '@/lib/crm/seed';
+import { loadRound } from '@/lib/crm/queries';
+import { deleteCustomer } from '../actions';
 
 export default async function CustomerPage({
   params,
@@ -19,6 +13,8 @@ export default async function CustomerPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const { customerById, planById, plansFor, propertiesFor, propertyById, visitsFor } =
+    await loadRound();
   const customer = customerById(id);
   if (!customer) notFound();
 
@@ -159,6 +155,11 @@ export default async function CustomerPage({
             </tbody>
           </table>
         </div>
+        {history.length === 0 && (
+          <p className="mt-2 text-sm text-bark/50">
+            No visits recorded yet.
+          </p>
+        )}
         {history.some((v) => v.notes) && (
           <ul className="mt-2 space-y-1 text-xs text-bark/50">
             {history
@@ -171,6 +172,32 @@ export default async function CustomerPage({
           </ul>
         )}
       </section>
+
+      {/* Tucked behind a disclosure so it cannot be hit by accident on a
+          phone. Only the owner is allowed to delete — the database enforces
+          that, not this button. */}
+      <details className="mt-8">
+        <summary className="cursor-pointer text-sm text-bark/45 hover:text-bark">
+          Remove this customer
+        </summary>
+        <div className={`${card} mt-2 border-red-200`}>
+          <p className="text-sm text-bark/70">
+            Deletes {customer.name}, their {properties.length} propert
+            {properties.length === 1 ? 'y' : 'ies'}, {plans.length} plan
+            {plans.length === 1 ? '' : 's'} and {history.length} visit
+            {history.length === 1 ? '' : 's'}. This cannot be undone.
+          </p>
+          <form action={deleteCustomer} className="mt-3">
+            <input type="hidden" name="id" value={customer.id} />
+            <button
+              type="submit"
+              className="rounded-lg border border-red-600 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+            >
+              Delete {customer.name}
+            </button>
+          </form>
+        </div>
+      </details>
     </main>
   );
 }

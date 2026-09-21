@@ -65,6 +65,13 @@ const ADDRESS_CORE = new RegExp(
 const NOT_A_SUBURB =
   /^(the|a|an|and|then|please|thanks|thank|mate|its|it'?s|they|he|she|we|i|is|was|has|have|needs?|wants?|with|about|for|to|take|takes|got|there|their|lawn|lawns|grass|yard|garden|beds?|dog|gate|back|front|side|customer|client|house|place|job|out|really|very|bit|quite)$/i;
 
+/**
+ * Checked before the address rules, because "add a new customer at 12 Short
+ * Street" contains an address but is emphatically not a request for a quote.
+ */
+const ADD_CUSTOMER =
+  /\b(add|new|create|set\s*up)\s+(a\s+)?(customer|client)\b|\badd\s+(them|him|her)\s+to\s+the\s+books\b/i;
+
 const QUOTE_WORDS =
   /\b(quote|quoting|price|pricing|price up|how much|new job|estimate)\b/i;
 
@@ -93,10 +100,6 @@ const NAV_TARGETS: { href: string; label: string; match: RegExp }[] = [
 
 /** Things it is reasonable to ask for that the app genuinely cannot do yet. */
 const NOT_BUILT: { match: RegExp; say: string }[] = [
-  {
-    match: /\b(add|new|create)\s+(a\s+)?(customer|client)\b/i,
-    say: 'There is no add-customer form yet, so I cannot do that one.',
-  },
   {
     match: /\b(invoice|invoicing|send the invoice|bill them)\b/i,
     say: 'Invoicing is not built yet.',
@@ -253,6 +256,19 @@ export function routeCommand(raw: string, directory: Directory): VoiceAction {
   const found = findAddress(text);
   const address = found?.address ?? null;
   const wantsQuote = QUOTE_WORDS.test(text);
+
+  // Putting someone on the books. Carry the address over if one was said, so
+  // the form opens half filled in.
+  if (ADD_CUSTOMER.test(text)) {
+    const params = new URLSearchParams();
+    if (address) params.set('address', address);
+    const query = params.toString();
+    return {
+      kind: 'navigate',
+      href: query ? `/customers/new?${query}` : '/customers/new',
+      say: address ? `New customer at ${address}` : 'Adding a customer',
+    };
+  }
 
   // An address plus "quote" is the flagship: say a street, get a price. The
   // page reads these back off the URL and runs the lookup on arrival.

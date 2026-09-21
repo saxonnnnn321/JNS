@@ -3,7 +3,7 @@ import { card, legend, FrequencyTag } from '@/components/ui';
 import { formatMinutes, formatMoney } from '@/lib/format';
 import { addDays, formatBusinessDate } from '@/lib/dates';
 import { dayName, roundBetween, today, weekStart } from '@/lib/crm/schedule';
-import { lookup } from '@/lib/crm/seed';
+import { loadRound } from '@/lib/crm/queries';
 
 // These pages ask what day it is, so they must not be prerendered at build
 // time — a statically generated run sheet would freeze on the build date and
@@ -13,8 +13,9 @@ export const dynamic = 'force-dynamic';
 
 const WEEKS = 3;
 
-export default function SchedulePage() {
+export default async function SchedulePage() {
   const date = today();
+  const { lookup } = await loadRound();
   const start = weekStart(date);
   const stops = roundBetween(lookup, start, addDays(start, WEEKS * 7 - 1));
 

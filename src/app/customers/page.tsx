@@ -4,7 +4,7 @@ import { formatMoney } from '@/lib/format';
 import { formatBusinessDate } from '@/lib/dates';
 import { dueDates, today, weeklyRecurringCents } from '@/lib/crm/schedule';
 import { addDays } from '@/lib/dates';
-import { customers, plansFor, propertiesFor } from '@/lib/crm/seed';
+import { loadRound } from '@/lib/crm/queries';
 
 // These pages ask what day it is, so they must not be prerendered at build
 // time — a statically generated run sheet would freeze on the build date and
@@ -12,8 +12,9 @@ import { customers, plansFor, propertiesFor } from '@/lib/crm/seed';
 export const dynamic = 'force-dynamic';
 
 
-export default function CustomersPage() {
+export default async function CustomersPage() {
   const date = today();
+  const { customers, plansFor, propertiesFor } = await loadRound();
   const horizon = addDays(date, 90);
 
   const rows = customers
@@ -38,10 +39,35 @@ export default function CustomersPage() {
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">Customers</h1>
-        <p className="text-sm text-bark/50">
-          {customers.length} customers · {formatMoney(total)}/week recurring
-        </p>
+        <div className="flex items-baseline gap-4">
+          <p className="text-sm text-bark/50">
+            {customers.length} customer{customers.length === 1 ? '' : 's'} ·{' '}
+            {formatMoney(total)}/week recurring
+          </p>
+          <Link
+            href="/customers/new"
+            className="rounded-lg bg-leaf px-4 py-2 text-sm font-medium text-white hover:bg-leaf/90"
+          >
+            + Add
+          </Link>
+        </div>
       </div>
+
+      {customers.length === 0 && (
+        <div className={`${card} mt-5`}>
+          <p className="font-semibold">No customers yet.</p>
+          <p className="mt-1 text-sm text-bark/60">
+            Add one and it shows up here, on the round, and on today&rsquo;s run
+            sheet. You can measure the block while you are at it.
+          </p>
+          <Link
+            href="/customers/new"
+            className="mt-3 inline-block rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90"
+          >
+            Add your first customer
+          </Link>
+        </div>
+      )}
 
       <div className="mt-5 space-y-2">
         {rows.map(({ customer, plans, properties, next, perWeek }) => (

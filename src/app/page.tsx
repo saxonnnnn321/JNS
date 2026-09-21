@@ -13,7 +13,7 @@ import {
   weekStart,
 } from '@/lib/crm/schedule';
 import { addDays } from '@/lib/dates';
-import { lookup, planById, plans, visits } from '@/lib/crm/seed';
+import { loadRound } from '@/lib/crm/queries';
 
 // These pages ask what day it is, so they must not be prerendered at build
 // time — a statically generated run sheet would freeze on the build date and
@@ -21,8 +21,9 @@ import { lookup, planById, plans, visits } from '@/lib/crm/seed';
 export const dynamic = 'force-dynamic';
 
 
-export default function TodayPage() {
+export default async function TodayPage() {
   const date = today();
+  const { lookup, planById, plans, visits, isEmpty } = await loadRound();
   const stops = roundForDay(lookup, date);
   const week = roundBetween(lookup, weekStart(date), addDays(weekStart(date), 6));
 
@@ -51,6 +52,23 @@ export default function TodayPage() {
           + New quote
         </Link>
       </div>
+
+      {isEmpty && (
+        <div className={`${card} mt-5`}>
+          <p className="font-semibold">Nothing here yet.</p>
+          <p className="mt-1 text-sm text-bark/60">
+            Add your customers and the round builds itself — today&rsquo;s jobs,
+            the week ahead and what you are owed all come from their standing
+            plans.
+          </p>
+          <Link
+            href="/customers/new"
+            className="mt-3 inline-block rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90"
+          >
+            Add your first customer
+          </Link>
+        </div>
+      )}
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat

@@ -172,10 +172,10 @@ describe('routeCommand — falling back', () => {
   });
 
   it('says so plainly when the app cannot do it yet', () => {
-    expect(routeCommand('add a new customer called Bob', DIRECTORY)).toMatchObject(
-      { kind: 'unsupported' },
-    );
     expect(routeCommand('send the invoice to Dave', DIRECTORY)).toMatchObject({
+      kind: 'unsupported',
+    });
+    expect(routeCommand('mark that one done', DIRECTORY)).toMatchObject({
       kind: 'unsupported',
     });
   });
@@ -193,5 +193,27 @@ describe('routeCommand — falling back', () => {
 
   it('handles empty input', () => {
     expect(routeCommand('   ', DIRECTORY).kind).toBe('unknown');
+  });
+});
+
+describe('routeCommand — adding a customer', () => {
+  it('opens the form', () => {
+    expect(routeCommand('add a new customer', DIRECTORY)).toMatchObject({
+      kind: 'navigate',
+      href: '/customers/new',
+    });
+  });
+
+  it('carries an address into the form rather than quoting it', () => {
+    // "add a new customer at 12 Short Street" contains an address, but it is
+    // the one sentence with an address that must NOT open a quote.
+    const action = routeCommand(
+      'add a new customer at 40 Gipps Street Kingswood',
+      DIRECTORY,
+    );
+    if (action.kind !== 'navigate') throw new Error('expected a navigation');
+    const url = new URL(action.href, 'https://x');
+    expect(url.pathname).toBe('/customers/new');
+    expect(url.searchParams.get('address')).toBe('40 Gipps Street Kingswood');
   });
 });
