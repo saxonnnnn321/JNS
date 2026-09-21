@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { BUSINESS } from '@/lib/business';
+import { currentStaff } from '@/lib/supabase/server';
 
 const LINKS = [
   { href: '/', label: 'Today' },
@@ -8,7 +9,11 @@ const LINKS = [
   { href: '/quotes/new', label: 'New quote' },
 ];
 
-export function Nav() {
+export async function Nav() {
+  const staff = await currentStaff();
+  // Nothing to navigate to when signed out; the login page stands alone.
+  if (!staff) return null;
+
   return (
     <header className="border-b border-black/10 bg-white">
       <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
@@ -26,9 +31,18 @@ export function Nav() {
             </Link>
           ))}
         </div>
-        <span className="ml-auto rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-medium text-amber-800">
-          Mock data
-        </span>
+
+        <div className="ml-auto flex items-center gap-3 text-xs text-bark/45">
+          <span className="hidden sm:inline">
+            {staff.full_name || staff.email}
+            {staff.role === 'owner' && ' · owner'}
+          </span>
+          <form action="/auth/signout" method="post">
+            <button type="submit" className="hover:text-bark">
+              Sign out
+            </button>
+          </form>
+        </div>
       </nav>
     </header>
   );
