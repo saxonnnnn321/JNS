@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { estimateQuote } from '@/lib/pricing';
 import { RATE_CARD } from '@/lib/rate-card';
@@ -17,8 +17,9 @@ import type {
 import type { OptionalTask } from '@/lib/assess/site';
 import type { PropertyLookupResult } from '@/lib/property/lookup';
 import { useDictation } from '@/lib/voice/use-dictation';
-import { looksLikeAddress, tidyAddress } from '@/lib/voice/speech';
+import { joinDictation, looksLikeAddress, tidyAddress } from '@/lib/voice/speech';
 import { MicButton } from '@/components/mic-button';
+import { useVoiceTarget } from '@/components/voice-provider';
 
 /**
  * Two inputs: an address and some photos.
@@ -205,6 +206,42 @@ export default function NewQuotePage() {
   });
 
   const noteVoice = useDictation({ onTranscript: setJobNote });
+
+  // Anything said into the app-wide microphone that was not a command lands
+  // in the note, because on this page that is what loose words are.
+  useVoiceTarget((text) => setJobNote((prev) => joinDictation(prev, text)));
+
+  /**
+   * The app-wide microphone sends a spoken address here as a query string
+   * rather than shouting across the app: "quote for 12 Short Street" becomes
+   * /quotes/new?address=…&lookup=1 and is picked up on arrival.
+   *
+   * Read from `window.location` rather than `useSearchParams` so the page
+   * needs no Suspense boundary, and consumed exactly once — a refresh should
+   * not silently fire the lookup again.
+   */
+  const consumedParams = useRef(false);
+  useEffect(() => {
+    if (consumedParams.current) return;
+    consumedParams.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const spokenAddress = params.get('address');
+    const spokenNote = params.get('note');
+    if (!spokenAddress && !spokenNote) return;
+
+    if (spokenNote) setJobNote((prev) => joinDictation(prev, spokenNote));
+    if (spokenAddress) {
+      setAddressQuery(spokenAddress);
+      if (params.get('lookup') === '1') void findProperty(spokenAddress);
+    }
+
+    // Leave a clean URL behind.
+    window.history.replaceState(null, '', window.location.pathname);
+    // findProperty is stable for the life of the page and reads its address
+    // from the argument, so it is deliberately not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const measurementConfidence = lookup?.confidence ?? 0;
   const conditionConfidence =

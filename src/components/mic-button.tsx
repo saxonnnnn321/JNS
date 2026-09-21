@@ -10,18 +10,20 @@ export function MicButton({
   onClick,
   label,
   title,
+  className = '',
 }: {
   listening: boolean;
   onClick: () => void;
   /** Omit for an icon-only button, e.g. beside a single-line input. */
   label?: string;
   title?: string;
+  className?: string;
 }) {
   const base =
     'flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors';
   const look = listening
     ? 'border-red-600 bg-red-600 text-white hover:bg-red-700'
-    : 'border-leaf/40 text-leaf hover:bg-leaf-soft';
+    : 'border-leaf/40 bg-white text-leaf hover:bg-leaf-soft';
 
   return (
     <button
@@ -30,7 +32,7 @@ export function MicButton({
       title={title ?? (listening ? 'Stop listening' : 'Dictate')}
       aria-label={title ?? (listening ? 'Stop listening' : 'Dictate')}
       aria-pressed={listening}
-      className={`${base} ${look} ${label ? '' : 'min-w-11 px-0'}`}
+      className={`${base} ${look} ${label ? '' : 'min-w-11 px-0'} ${className}`}
     >
       {listening ? <StopIcon /> : <MicIcon />}
       {label && <span>{listening ? 'Stop' : label}</span>}
