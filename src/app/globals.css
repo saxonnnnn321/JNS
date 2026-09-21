@@ -1,0 +1,15 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bark: #1f2a21;
+  --color-leaf: #2f5d3a;
+  --color-leaf-soft: #eaf1ec;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: #f6f7f5;
+}
