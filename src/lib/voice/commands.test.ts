@@ -217,3 +217,44 @@ describe('routeCommand — adding a customer', () => {
     expect(url.searchParams.get('address')).toBe('40 Gipps Street Kingswood');
   });
 });
+
+describe('routeCommand — the timesheet', () => {
+  it('opens the timesheet with the hours ready, but does not log them', () => {
+    // Voice never commits. It fills the form in and you press the button.
+    const action = routeCommand('log 3 hours on the Penrith run', DIRECTORY);
+    if (action.kind !== 'navigate') throw new Error('expected a navigation');
+    const url = new URL(action.href, 'https://x');
+    expect(url.pathname).toBe('/timesheet');
+    expect(url.searchParams.get('hours')).toBe('3');
+    expect(url.searchParams.get('what')).toMatch(/Penrith run/);
+  });
+
+  it('understands a half hour', () => {
+    const action = routeCommand('put down 6 and a half hours', DIRECTORY);
+    if (action.kind !== 'navigate') throw new Error('expected a navigation');
+    expect(new URL(action.href, 'https://x').searchParams.get('hours')).toBe('6.5');
+  });
+
+  it('logs time rather than opening a customer when both could match', () => {
+    // "5 Hope Street" is Dave's address, but the instruction is about hours.
+    const action = routeCommand('worked 4 hours at 5 Hope Street', DIRECTORY);
+    if (action.kind !== 'navigate') throw new Error('expected a navigation');
+    expect(action.href).toContain('/timesheet');
+  });
+
+  it('opens the split', () => {
+    expect(routeCommand('who owes who', DIRECTORY)).toMatchObject({
+      kind: 'navigate',
+      href: '/timesheet/split',
+    });
+  });
+
+  it('does not mistake an hour in a quote note for a timesheet entry', () => {
+    const action = routeCommand(
+      'quote 40 Gipps Street Kingswood, about an hour of weeding',
+      DIRECTORY,
+    );
+    if (action.kind !== 'navigate') throw new Error('expected a navigation');
+    expect(action.href).toContain('/quotes/new');
+  });
+});

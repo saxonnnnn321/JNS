@@ -75,7 +75,39 @@ const ADD_CUSTOMER =
 const QUOTE_WORDS =
   /\b(quote|quoting|price|pricing|price up|how much|new job|estimate)\b/i;
 
+/**
+ * "Log three hours on the Penrith run". Checked before the address rules,
+ * because an explicit instruction to record time outranks a street name that
+ * happens to be in the same sentence.
+ */
+const LOG_HOURS =
+  /\b(log|put\s+down|record|clock|worked?|did|done)\b[^.]*?\b\d/i;
+
+const HOURS =
+  /\b(\d+(?:\.\d+)?)\s*(?:(?:and\s+)?a\s+half\s*)?(hours?|hrs?|h)\b/i;
+
+const HALF = /\b\d+(?:\.\d+)?\s*(?:and\s+)?a\s+half\s*(hours?|hrs?|h)\b/i;
+
+/** Hours spoken in a sentence, or null. "Two and a half hours" is 2.5. */
+export function extractHours(text: string): number | null {
+  const match = HOURS.exec(tidyTranscript(text));
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0 || value > 24) return null;
+  return HALF.test(text) ? value + 0.5 : value;
+}
+
 const NAV_TARGETS: { href: string; label: string; match: RegExp }[] = [
+  {
+    href: '/timesheet/split',
+    label: 'the split',
+    match: /\b(the split|split it|square up|squaring up|who owes|settle up)\b/i,
+  },
+  {
+    href: '/timesheet',
+    label: 'the timesheet',
+    match: /\b(timesheet|time sheet|my hours|hours this week)\b/i,
+  },
   {
     href: '/schedule',
     label: 'the schedule',
@@ -245,6 +277,16 @@ function remainderAsNote(text: string, span: { start: number; end: number } | nu
   return tidyTranscript(rest);
 }
 
+/** "log three hours on the Penrith run" -> "on the Penrith run". */
+function remainderAsHoursNote(text: string): string {
+  return tidyTranscript(
+    tidyTranscript(text)
+      .replace(HOURS, ' ')
+      .replace(/\b(log|put\s+down|record|clock|worked?|did|done|today|and\s+a\s+half)\b/gi, ' ')
+      .replace(/^[\s,.-]+/, ''),
+  );
+}
+
 export function routeCommand(raw: string, directory: Directory): VoiceAction {
   const text = tidyTranscript(raw);
   if (!text) return { kind: 'unknown', text: '', say: 'Did not catch that.' };
@@ -256,6 +298,22 @@ export function routeCommand(raw: string, directory: Directory): VoiceAction {
   const found = findAddress(text);
   const address = found?.address ?? null;
   const wantsQuote = QUOTE_WORDS.test(text);
+
+  // Recording time. Never logs it outright — it opens the timesheet with the
+  // hours filled in, and you press the button. Voice does not commit.
+  if (LOG_HOURS.test(text)) {
+    const hours = extractHours(text);
+    if (hours !== null) {
+      const params = new URLSearchParams({ hours: String(hours) });
+      const what = remainderAsHoursNote(text);
+      if (what) params.set('what', what);
+      return {
+        kind: 'navigate',
+        href: `/timesheet?${params.toString()}`,
+        say: `${hours} hour${hours === 1 ? '' : 's'} ready to log — press the button`,
+      };
+    }
+  }
 
   // Putting someone on the books. Carry the address over if one was said, so
   // the form opens half filled in.
