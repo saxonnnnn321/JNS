@@ -6,6 +6,12 @@ import { createClient } from '@/lib/supabase/server';
 import { loadRound } from '@/lib/crm/queries';
 import { buildInvoice, formatInvoiceReference } from '@/lib/invoicing/build';
 import { invoiceableVisitsFor } from '@/lib/invoicing/collect';
+import {
+  billableExtras,
+  billableJobs,
+  extrasForCustomer,
+  jobsForCustomer,
+} from '@/lib/invoicing/jobs';
 import { BUSINESS } from '@/lib/business';
 import { addDays, businessDate } from '@/lib/dates';
 
@@ -26,14 +32,28 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
   const customerId = field(data, 'customerId');
   if (!customerId) return;
 
-  const round = await loadRound();
+  const [round, jobs, extras] = await Promise.all([
+    loadRound(),
+    jobsForCustomer(customerId),
+    extrasForCustomer(customerId),
+  ]);
+
   const visits = invoiceableVisitsFor(round, customerId);
-  if (visits.length === 0) {
+  const labelFor = (propertyId?: string) => {
+    const property = propertyId ? round.propertyById(propertyId) : undefined;
+    return property ? `${property.addressLine}, ${property.suburb}` : undefined;
+  };
+  const doneJobs = billableJobs(jobs, labelFor);
+  const openExtras = billableExtras(extras);
+
+  if (visits.length === 0 && doneJobs.length === 0 && openExtras.length === 0) {
     redirect(`/customers/${customerId}?invoice=nothing`);
   }
 
   const built = buildInvoice({
     visits,
+    jobs: doneJobs,
+    extras: openExtras,
     gstRegistered: BUSINESS.gstRegistered,
     gstRate: BUSINESS.gstRate,
   });
@@ -93,12 +113,27 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
   );
   if (itemError) console.error('could not save the invoice lines', itemError);
 
-  // Stamp the visits so they can never be billed a second time.
-  const { error: stampError } = await supabase
-    .from('visits')
-    .update({ invoice_id: invoiceId })
-    .in('id', built.visitIds);
-  if (stampError) console.error('could not stamp the visits', stampError);
+  // Stamp everything this invoice covers, so none of it can be billed twice.
+  const stamps = await Promise.all([
+    built.visitIds.length
+      ? supabase.from('visits').update({ invoice_id: invoiceId }).in('id', built.visitIds)
+      : null,
+    built.jobIds.length
+      ? supabase
+          .from('one_off_jobs')
+          .update({ invoice_id: invoiceId })
+          .in('id', built.jobIds)
+      : null,
+    built.extraIds.length
+      ? supabase
+          .from('invoice_extras')
+          .update({ invoice_id: invoiceId })
+          .in('id', built.extraIds)
+      : null,
+  ]);
+  for (const stamp of stamps) {
+    if (stamp?.error) console.error('could not stamp billed work', stamp.error);
+  }
 
   revalidatePath('/invoices');
   revalidatePath(`/customers/${customerId}`);
@@ -133,7 +168,12 @@ export async function deleteInvoice(data: FormData): Promise<void> {
   if (!id) return;
 
   const supabase = await createClient();
-  await supabase.from('visits').update({ invoice_id: null }).eq('invoice_id', id);
+  // Release everything it covered, or the work would be swallowed for good.
+  await Promise.all([
+    supabase.from('visits').update({ invoice_id: null }).eq('invoice_id', id),
+    supabase.from('one_off_jobs').update({ invoice_id: null }).eq('invoice_id', id),
+    supabase.from('invoice_extras').update({ invoice_id: null }).eq('invoice_id', id),
+  ]);
   const { error } = await supabase.from('invoices').delete().eq('id', id);
   if (error) {
     console.error('could not delete the invoice', error);

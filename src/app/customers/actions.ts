@@ -174,3 +174,236 @@ function describe(message: string | undefined, fallback: string): string {
   if (/duplicate key/i.test(message)) return 'That one is already on the books.';
   return `${fallback}: ${message}`;
 }
+
+// ---------------------------------------------------------------------------
+// Editing
+//
+// None of this existed until now, which meant a customer could be created and
+// then never corrected — wrong phone number, wrong price, no way to add their
+// second property. These are the actions that make the record live.
+// ---------------------------------------------------------------------------
+
+const optionalId = z.string().uuid().optional().or(z.literal(''));
+
+export async function updateCustomer(
+  _previous: FormResult,
+  data: FormData,
+): Promise<FormResult> {
+  const parsed = z
+    .object({
+      id: z.string().uuid(),
+      name: z.string().trim().min(1, 'A name is needed'),
+      phone: z.string().trim().max(40).optional(),
+      email: z.union([
+        z.string().trim().email('That email does not look right'),
+        z.literal(''),
+      ]),
+    })
+    .safeParse({
+      id: field(data, 'id'),
+      name: field(data, 'name'),
+      phone: field(data, 'phone'),
+      email: field(data, 'email'),
+    });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Check the form' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('customers')
+    .update({
+      name: parsed.data.name,
+      phone: parsed.data.phone || null,
+      email: parsed.data.email || null,
+    })
+    .eq('id', parsed.data.id);
+
+  if (error) return { error: describe(error.message, 'Could not save that') };
+
+  revalidatePath('/customers');
+  revalidatePath(`/customers/${parsed.data.id}`);
+  return null;
+}
+
+const propertyFields = z.object({
+  customerId: z.string().uuid(),
+  addressLine: z.string().trim().min(1, 'A street address is needed'),
+  suburb: z.string().trim().min(1, 'A suburb is needed'),
+  postcode: z.string().trim().max(10).optional(),
+  accessNotes: z.string().trim().max(500).optional(),
+  lawnAreaM2: z
+    .union([z.coerce.number().min(0).max(100_000), z.literal('')])
+    .optional(),
+});
+
+function propertyPayload(input: z.infer<typeof propertyFields>) {
+  return {
+    address_line: input.addressLine,
+    suburb: input.suburb,
+    state: 'NSW',
+    postcode: input.postcode || null,
+    access_notes: input.accessNotes || null,
+    lawn_area_m2: typeof input.lawnAreaM2 === 'number' ? input.lawnAreaM2 : null,
+  };
+}
+
+function readProperty(data: FormData) {
+  return {
+    customerId: field(data, 'customerId'),
+    addressLine: field(data, 'addressLine'),
+    suburb: field(data, 'suburb'),
+    postcode: field(data, 'postcode'),
+    accessNotes: field(data, 'accessNotes'),
+    lawnAreaM2: field(data, 'lawnAreaM2') || '',
+  };
+}
+
+export async function addProperty(
+  _previous: FormResult,
+  data: FormData,
+): Promise<FormResult> {
+  const parsed = propertyFields.safeParse(readProperty(data));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Check the form' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('properties').insert({
+    customer_id: parsed.data.customerId,
+    ...propertyPayload(parsed.data),
+  });
+  if (error) return { error: describe(error.message, 'Could not add that address') };
+
+  revalidatePath(`/customers/${parsed.data.customerId}`);
+  return null;
+}
+
+export async function updateProperty(
+  _previous: FormResult,
+  data: FormData,
+): Promise<FormResult> {
+  const parsed = propertyFields
+    .extend({ id: z.string().uuid() })
+    .safeParse({ ...readProperty(data), id: field(data, 'id') });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Check the form' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('properties')
+    .update(propertyPayload(parsed.data))
+    .eq('id', parsed.data.id);
+  if (error) return { error: describe(error.message, 'Could not save that address') };
+
+  revalidatePath(`/customers/${parsed.data.customerId}`);
+  return null;
+}
+
+const planFields = z.object({
+  customerId: z.string().uuid(),
+  propertyId: z.string().uuid(),
+  frequency: z.enum(['weekly', 'fortnightly', 'monthly', 'onceOff']),
+  anchorDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a first visit date'),
+  packageKey: z.enum(['standard', 'fullTidy']),
+  price: dollars,
+  estimatedMinutes: z.coerce.number().int().min(0).max(1440),
+  active: z.enum(['true', 'false']).default('true'),
+  pausedUntil: z
+    .union([z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal('')])
+    .optional(),
+});
+
+function planPayload(input: z.infer<typeof planFields>) {
+  return {
+    property_id: input.propertyId,
+    frequency: input.frequency,
+    anchor_date: input.anchorDate,
+    package_key: input.packageKey,
+    price_cents: Math.round(input.price * 100),
+    estimated_minutes: input.estimatedMinutes,
+    active: input.active === 'true',
+    paused_until: input.pausedUntil || null,
+  };
+}
+
+function readPlan(data: FormData) {
+  return {
+    customerId: field(data, 'customerId'),
+    propertyId: field(data, 'propertyId'),
+    frequency: field(data, 'frequency'),
+    anchorDate: field(data, 'anchorDate'),
+    packageKey: field(data, 'packageKey') || 'standard',
+    price: field(data, 'price'),
+    estimatedMinutes: field(data, 'estimatedMinutes') || '0',
+    active: field(data, 'active') || 'true',
+    pausedUntil: field(data, 'pausedUntil') || '',
+  };
+}
+
+export async function addPlan(
+  _previous: FormResult,
+  data: FormData,
+): Promise<FormResult> {
+  const parsed = planFields.safeParse(readPlan(data));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Check the form' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('service_plans').insert({
+    customer_id: parsed.data.customerId,
+    ...planPayload(parsed.data),
+  });
+  if (error) return { error: describe(error.message, 'Could not add that plan') };
+
+  revalidatePath('/');
+  revalidatePath('/schedule');
+  revalidatePath(`/customers/${parsed.data.customerId}`);
+  return null;
+}
+
+export async function updatePlan(
+  _previous: FormResult,
+  data: FormData,
+): Promise<FormResult> {
+  const parsed = planFields
+    .extend({ id: z.string().uuid() })
+    .safeParse({ ...readPlan(data), id: field(data, 'id') });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Check the form' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('service_plans')
+    .update(planPayload(parsed.data))
+    .eq('id', parsed.data.id);
+  if (error) return { error: describe(error.message, 'Could not save that plan') };
+
+  revalidatePath('/');
+  revalidatePath('/schedule');
+  revalidatePath(`/customers/${parsed.data.customerId}`);
+  return null;
+}
+
+/**
+ * Removing a property or a plan. Deleting is owner-only in the database, so a
+ * crew member gets a sentence rather than a silent no-op.
+ */
+export async function removeRecord(data: FormData): Promise<void> {
+  const table = field(data, 'table');
+  const id = field(data, 'id');
+  const customerId = field(data, 'customerId');
+  if (!id || !['properties', 'service_plans'].includes(table)) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from(table).delete().eq('id', id);
+  if (error) console.error('could not remove', table, error);
+
+  revalidatePath('/');
+  revalidatePath('/schedule');
+  if (customerId) revalidatePath(`/customers/${customerId}`);
+}

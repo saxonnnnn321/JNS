@@ -20,6 +20,7 @@ import { useDictation } from '@/lib/voice/use-dictation';
 import { joinDictation, looksLikeAddress, tidyAddress } from '@/lib/voice/speech';
 import { MicButton } from '@/components/mic-button';
 import { useVoiceTarget } from '@/components/voice-provider';
+import { SaveQuote } from './save-quote';
 
 /**
  * Two inputs: an address and some photos.
@@ -874,6 +875,23 @@ export default function NewQuotePage() {
                   <p className="mt-2 text-xs text-bark/45">Needs a customer name.</p>
                 )}
                 {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+
+                {/* The quote stops being a PDF and starts being work. */}
+                {lookup && (
+                  <div className="mt-4 border-t border-black/10 pt-4">
+                    <p className={legend}>Keep it</p>
+                    <SaveQuote
+                      customer={customer}
+                      address={{
+                        addressLine: lookup.address.addressLine,
+                        suburb: lookup.address.suburb,
+                        postcode: lookup.address.postcode,
+                      }}
+                      lawnAreaM2={measurements.lawnAreaM2}
+                      options={quote.options}
+                    />
+                  </div>
+                )}
               </div>
             </>
           )}

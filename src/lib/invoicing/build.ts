@@ -31,6 +31,26 @@ export type InvoiceableVisit = {
   propertyLabel: string;
 };
 
+/** A construction job or similar one-off, finished and not yet billed. */
+export type InvoiceableJob = {
+  jobId: string;
+  title: string;
+  propertyLabel?: string;
+  /** YYYY-MM-DD */
+  completedOn: string;
+  priceCents: number;
+  materialsCents: number;
+};
+
+/** Anything else: materials, a callout, or a discount (negative). */
+export type InvoiceableExtra = {
+  extraId: string;
+  description: string;
+  amountCents: number;
+  /** YYYY-MM-DD */
+  incurredOn: string;
+};
+
 export type InvoiceLine = {
   sort: number;
   description: string;
@@ -44,8 +64,10 @@ export type BuiltInvoice = {
   subtotalCents: number;
   gstCents: number;
   totalCents: number;
-  /** The visits this invoice covers, to be stamped with its id afterwards. */
+  /** What this invoice covers, to be stamped with its id afterwards. */
   visitIds: string[];
+  jobIds: string[];
+  extraIds: string[];
   periodFrom: string;
   periodTo: string;
   /** True when there was nothing to bill. */
@@ -79,20 +101,28 @@ function short(date: string): string {
 
 export function buildInvoice({
   visits,
+  jobs = [],
+  extras = [],
   gstRegistered,
   gstRate,
 }: {
   visits: InvoiceableVisit[];
+  /** Construction and other one-off work, finished and unbilled. */
+  jobs?: InvoiceableJob[];
+  /** Materials, callouts, discounts. */
+  extras?: InvoiceableExtra[];
   gstRegistered: boolean;
   gstRate: number;
 }): BuiltInvoice {
-  if (visits.length === 0) {
+  if (visits.length === 0 && jobs.length === 0 && extras.length === 0) {
     return {
       lines: [],
       subtotalCents: 0,
       gstCents: 0,
       totalCents: 0,
       visitIds: [],
+      jobIds: [],
+      extraIds: [],
       periodFrom: '',
       periodTo: '',
       isEmpty: true,
@@ -128,11 +158,10 @@ export function buildInvoice({
     }
   }
 
-  const lines: InvoiceLine[] = [...groups.values()]
+  const visitLines = [...groups.values()]
     // Earliest work first, which is the order it was done in.
     .sort((a, b) => [...a.dates].sort()[0].localeCompare([...b.dates].sort()[0]))
-    .map((group, index) => ({
-      sort: index,
+    .map((group) => ({
       description: `${group.propertyLabel} — ${
         PACKAGE_LABEL[group.packageKey] ?? group.packageKey
       } (${datesLabel(group.dates)})`,
@@ -141,10 +170,55 @@ export function buildInvoice({
       amountCents: group.priceCents * group.dates.length,
     }));
 
-  const subtotalCents = lines.reduce((total, line) => total + line.amountCents, 0);
-  const gstCents = gstRegistered ? Math.round(subtotalCents * gstRate) : 0;
+  // A one-off job is its own line — never grouped, because two retaining
+  // walls at the same price are still two different walls.
+  const jobLines = [...jobs]
+    .sort((a, b) => a.completedOn.localeCompare(b.completedOn))
+    .flatMap((job) => {
+      const where = job.propertyLabel ? `${job.propertyLabel} — ` : '';
+      const line = {
+        description: `${where}${job.title} (completed ${short(job.completedOn)})`,
+        quantity: 1,
+        unit: 'job',
+        amountCents: job.priceCents,
+      };
+      // Materials are shown separately so the customer can see the split.
+      return job.materialsCents > 0
+        ? [
+            line,
+            {
+              description: `${where}${job.title} — materials`,
+              quantity: 1,
+              unit: '',
+              amountCents: job.materialsCents,
+            },
+          ]
+        : [line];
+    });
 
-  const allDates = visits.map((visit) => visit.date).sort();
+  const extraLines = [...extras]
+    .sort((a, b) => a.incurredOn.localeCompare(b.incurredOn))
+    .map((extra) => ({
+      description: `${extra.description} (${short(extra.incurredOn)})`,
+      quantity: 1,
+      unit: '',
+      amountCents: extra.amountCents,
+    }));
+
+  const lines: InvoiceLine[] = [...visitLines, ...jobLines, ...extraLines].map(
+    (line, index) => ({ ...line, sort: index }),
+  );
+
+  const subtotalCents = lines.reduce((total, line) => total + line.amountCents, 0);
+  // A discount big enough to go negative should not produce negative tax.
+  const gstCents =
+    gstRegistered && subtotalCents > 0 ? Math.round(subtotalCents * gstRate) : 0;
+
+  const allDates = [
+    ...visits.map((visit) => visit.date),
+    ...jobs.map((job) => job.completedOn),
+    ...extras.map((extra) => extra.incurredOn),
+  ].sort();
 
   return {
     lines,
@@ -152,6 +226,8 @@ export function buildInvoice({
     gstCents,
     totalCents: subtotalCents + gstCents,
     visitIds: visits.map((visit) => visit.visitId),
+    jobIds: jobs.map((job) => job.jobId),
+    extraIds: extras.map((extra) => extra.extraId),
     periodFrom: allDates[0],
     periodTo: allDates[allDates.length - 1],
     isEmpty: false,

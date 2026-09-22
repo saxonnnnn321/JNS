@@ -3,33 +3,93 @@ import { notFound } from 'next/navigation';
 import { card, legend, FrequencyTag } from '@/components/ui';
 import { formatMinutes, formatMoney } from '@/lib/format';
 import { addDays, formatBusinessDate } from '@/lib/dates';
-import { dueDates, estimateAccuracy, today, weeklyRecurringCents } from '@/lib/crm/schedule';
+import {
+  dueDates,
+  estimateAccuracy,
+  today,
+  weeklyRecurringCents,
+} from '@/lib/crm/schedule';
 import { loadRound } from '@/lib/crm/queries';
-import { deleteCustomer } from '../actions';
+import { deleteCustomer, removeRecord } from '../actions';
 import { invoiceCustomer } from '@/app/invoices/actions';
+import { finishJob, removeExtra, removeJob } from '@/app/jobs/actions';
 import { invoiceableVisitsFor } from '@/lib/invoicing/collect';
+import {
+  billableExtras,
+  billableJobs,
+  extrasForCustomer,
+  jobsForCustomer,
+} from '@/lib/invoicing/jobs';
+import {
+  EditCustomer,
+  ExtraForm,
+  JobForm,
+  PlanForm,
+  PropertyForm,
+} from './forms';
+
+export const dynamic = 'force-dynamic';
+
+const JOB_STATUS: Record<string, { label: string; style: string }> = {
+  quoted: { label: 'Quoted', style: 'bg-bark/10 text-bark/60' },
+  scheduled: { label: 'Booked in', style: 'bg-leaf-soft text-leaf' },
+  in_progress: { label: 'Started', style: 'bg-amber-100 text-amber-900' },
+  done: { label: 'Finished', style: 'bg-leaf text-white' },
+  cancelled: { label: 'Cancelled', style: 'bg-bark/10 text-bark/40' },
+};
 
 export default async function CustomerPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ invoice?: string }>;
 }) {
   const { id } = await params;
-  const round = await loadRound();
-  const { customerById, planById, plansFor, propertiesFor, propertyById, visitsFor } =
-    round;
-  const customer = customerById(id);
+  const { invoice: invoiceFlag } = await searchParams;
+
+  const [round, jobs, extras] = await Promise.all([
+    loadRound(),
+    jobsForCustomer(id),
+    extrasForCustomer(id),
+  ]);
+
+  const customer = round.customerById(id);
   if (!customer) notFound();
 
-  // Work ticked off and not yet billed. This is what an invoice would cover.
-  const unbilled = invoiceableVisitsFor(round, id);
-  const unbilledCents = unbilled.reduce((total, v) => total + v.priceCents, 0);
-
   const date = today();
-  const plans = plansFor(id);
-  const properties = propertiesFor(id);
-  const history = visitsFor(id);
-  const accuracy = estimateAccuracy(history, (planId) => planById(planId)?.estimatedMinutes);
+  const plans = round.plansFor(id);
+  const properties = round.propertiesFor(id);
+  const history = round.visitsFor(id);
+  const accuracy = estimateAccuracy(history, (planId) =>
+    round.planById(planId)?.estimatedMinutes,
+  );
+
+  const propertyOptions = properties.map((property) => ({
+    id: property.id,
+    label: `${property.addressLine}, ${property.suburb}`,
+  }));
+  const labelFor = (propertyId?: string) =>
+    propertyOptions.find((option) => option.id === propertyId)?.label;
+
+  // Everything that would go on an invoice if you pressed the button now.
+  const unbilledVisits = invoiceableVisitsFor(round, id);
+  const unbilledJobs = billableJobs(jobs, labelFor);
+  const unbilledExtras = billableExtras(extras);
+  const unbilledCents =
+    unbilledVisits.reduce((t, v) => t + v.priceCents, 0) +
+    unbilledJobs.reduce((t, j) => t + j.priceCents + j.materialsCents, 0) +
+    unbilledExtras.reduce((t, e) => t + e.amountCents, 0);
+  const unbilledCount =
+    unbilledVisits.length + unbilledJobs.length + unbilledExtras.length;
+
+  const openJobs = jobs.filter(
+    (job) => job.status !== 'cancelled' && job.status !== 'done',
+  );
+  const jobsPipeline = openJobs.reduce(
+    (t, job) => t + job.priceCents + job.materialsCents,
+    0,
+  );
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -39,79 +99,55 @@ export default async function CustomerPage({
 
       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">{customer.name}</h1>
-        <span className="text-sm font-semibold text-leaf">
-          {formatMoney(weeklyRecurringCents(plans))}/wk
-        </span>
+        <div className="text-right text-sm">
+          <span className="font-semibold text-leaf">
+            {formatMoney(weeklyRecurringCents(plans))}/wk
+          </span>
+          {jobsPipeline > 0 && (
+            <span className="text-bark/50">
+              {' '}
+              · {formatMoney(jobsPipeline)} in jobs
+            </span>
+          )}
+        </div>
       </div>
       <p className="mt-1 text-sm text-bark/60">
-        {[customer.phone, customer.email].filter(Boolean).join(' · ')} · Customer
-        since {formatBusinessDate(customer.since)}
+        {[customer.phone, customer.email].filter(Boolean).join(' · ') ||
+          'No contact details'}{' '}
+        · since {formatBusinessDate(customer.since)}
       </p>
-      {customer.notes && (
-        <p className={`${card} mt-3 text-sm`}>{customer.notes}</p>
+
+      {invoiceFlag === 'nothing' && (
+        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          Nothing to invoice yet. Tick a visit off the run sheet, mark a job
+          finished, or add an extra line below.
+        </p>
+      )}
+      {invoiceFlag === 'failed' && (
+        <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          Could not create the invoice. Check the logs.
+        </p>
       )}
 
-      <section className="mt-6">
-        <h2 className={legend}>Properties & standing work</h2>
-        <div className="mt-2 space-y-3">
-          {properties.map((property) => {
-            const plan = plans.find((p) => p.propertyId === property.id);
-            const upcoming = plan ? dueDates(plan, date, addDays(date, 84)).slice(0, 4) : [];
-            return (
-              <div key={property.id} className={card}>
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-semibold">
-                    {property.addressLine}, {property.suburb} {property.postcode}
-                  </span>
-                  {plan && (
-                    <span className="font-semibold text-leaf">
-                      {formatMoney(plan.priceCents)}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-bark/50">
-                  {property.lotId && `Lot ${property.lotId} · `}
-                  {property.parcelAreaM2} m² block · {property.lawnAreaM2} m² lawn
-                </p>
-                {property.accessNotes && (
-                  <p className="mt-1 text-xs text-amber-800">⚠ {property.accessNotes}</p>
-                )}
-                {plan ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-bark/60">
-                    <FrequencyTag frequency={plan.frequency} />
-                    <span>{formatMinutes(plan.estimatedMinutes)} a visit</span>
-                    {plan.pausedUntil && (
-                      <span className="text-amber-800">
-                        Paused until {formatBusinessDate(plan.pausedUntil)}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-amber-800">No standing plan.</p>
-                )}
-                {upcoming.length > 0 && (
-                  <p className="mt-2 text-xs text-bark/50">
-                    Next: {upcoming.map((d) => formatBusinessDate(d)).join(' · ')}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className={`${card} mt-6`}>
+      {/* ---------- invoicing ---------- */}
+      <section className={`${card} mt-5`}>
         <p className={legend}>Invoicing</p>
-        {unbilled.length === 0 ? (
+        {unbilledCount === 0 ? (
           <p className="mt-2 text-sm text-bark/60">
-            Nothing waiting to be billed. Tick jobs off the run sheet as you
-            finish them and they show up here.
+            Nothing waiting to be billed.
           </p>
         ) : (
           <>
             <p className="mt-2 text-sm">
-              <b>{unbilled.length}</b> visit{unbilled.length === 1 ? '' : 's'}{' '}
-              done and not yet invoiced — {formatMoney(unbilledCents)}.
+              <b>{formatMoney(unbilledCents)}</b> ready to invoice —{' '}
+              {[
+                unbilledVisits.length && `${unbilledVisits.length} visit${unbilledVisits.length === 1 ? '' : 's'}`,
+                unbilledJobs.length && `${unbilledJobs.length} job${unbilledJobs.length === 1 ? '' : 's'}`,
+                unbilledExtras.length && `${unbilledExtras.length} extra line${unbilledExtras.length === 1 ? '' : 's'}`,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+              .
             </p>
             <form action={invoiceCustomer} className="mt-3">
               <input type="hidden" name="customerId" value={customer.id} />
@@ -123,12 +159,301 @@ export default async function CustomerPage({
               </button>
             </form>
             <p className="mt-2 text-xs text-bark/45">
-              Makes a draft you can read before anything is sent.
+              Makes a draft you read before anything is sent.
             </p>
           </>
         )}
       </section>
 
+      {/* ---------- details ---------- */}
+      <Panel title="Contact details" summary="Change the name, phone or email">
+        <EditCustomer
+          id={customer.id}
+          name={customer.name}
+          phone={customer.phone}
+          email={customer.email}
+        />
+      </Panel>
+
+      {/* ---------- addresses ---------- */}
+      <section className="mt-6">
+        <h2 className={legend}>Addresses</h2>
+        {properties.length === 0 ? (
+          <p className={`${card} mt-2 text-sm text-bark/50`}>
+            No address on file. Add one below — plans and jobs hang off it.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {properties.map((property) => (
+              <li key={property.id} className={`${card} text-sm`}>
+                <details>
+                  <summary className="cursor-pointer">
+                    <span className="font-medium">{property.addressLine}</span>
+                    <span className="text-bark/60">, {property.suburb}</span>
+                    {property.lawnAreaM2 ? (
+                      <span className="ml-2 text-xs text-bark/45">
+                        lawn {property.lawnAreaM2} m²
+                      </span>
+                    ) : null}
+                    {property.accessNotes && (
+                      <span className="mt-1 block text-xs text-amber-800">
+                        ⚠ {property.accessNotes}
+                      </span>
+                    )}
+                  </summary>
+                  <div className="mt-3 border-t border-black/5 pt-3">
+                    <PropertyForm
+                      customerId={customer.id}
+                      property={{
+                        id: property.id,
+                        addressLine: property.addressLine,
+                        suburb: property.suburb,
+                        postcode: property.postcode,
+                        accessNotes: property.accessNotes,
+                        lawnAreaM2: property.lawnAreaM2,
+                      }}
+                    />
+                    <form action={removeRecord} className="mt-3">
+                      <input type="hidden" name="table" value="properties" />
+                      <input type="hidden" name="id" value={property.id} />
+                      <input type="hidden" name="customerId" value={customer.id} />
+                      <button
+                        type="submit"
+                        className="text-xs text-bark/40 hover:text-red-600"
+                      >
+                        Remove this address
+                      </button>
+                    </form>
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Panel title="Add an address" summary="Add an address">
+          <PropertyForm customerId={customer.id} />
+        </Panel>
+      </section>
+
+      {/* ---------- the round ---------- */}
+      <section className="mt-6">
+        <h2 className={legend}>On the round</h2>
+        {plans.length === 0 ? (
+          <p className={`${card} mt-2 text-sm text-bark/50`}>
+            Not on the round. That is fine for one-off and construction work —
+            add a plan below if they want regular visits.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {plans.map((plan) => {
+              const property = round.propertyById(plan.propertyId);
+              const next = dueDates(plan, date, addDays(date, 90))[0];
+              return (
+                <li key={plan.id} className={`${card} text-sm`}>
+                  <details>
+                    <summary className="cursor-pointer">
+                      <span className="flex flex-wrap items-baseline gap-2">
+                        <FrequencyTag frequency={plan.frequency} />
+                        <span className="font-medium">
+                          {property?.addressLine ?? 'Unknown address'}
+                        </span>
+                        <span className="text-bark/60">
+                          {formatMoney(plan.priceCents)} ·{' '}
+                          {formatMinutes(plan.estimatedMinutes)}
+                        </span>
+                        {!plan.active && (
+                          <span className="rounded-full bg-bark/10 px-2 py-0.5 text-[11px] text-bark/50">
+                            stopped
+                          </span>
+                        )}
+                        {plan.pausedUntil && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-900">
+                            paused to {formatBusinessDate(plan.pausedUntil)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 block text-xs text-bark/45">
+                        {next ? `Next due ${formatBusinessDate(next)}` : 'Nothing due'}
+                      </span>
+                    </summary>
+                    <div className="mt-3 border-t border-black/5 pt-3">
+                      <PlanForm
+                        customerId={customer.id}
+                        properties={propertyOptions}
+                        today={date}
+                        plan={{
+                          id: plan.id,
+                          propertyId: plan.propertyId,
+                          frequency: plan.frequency,
+                          anchorDate: plan.anchorDate,
+                          packageKey: plan.packageKey,
+                          priceCents: plan.priceCents,
+                          estimatedMinutes: plan.estimatedMinutes,
+                          active: plan.active,
+                          pausedUntil: plan.pausedUntil,
+                        }}
+                      />
+                      <form action={removeRecord} className="mt-3">
+                        <input type="hidden" name="table" value="service_plans" />
+                        <input type="hidden" name="id" value={plan.id} />
+                        <input type="hidden" name="customerId" value={customer.id} />
+                        <button
+                          type="submit"
+                          className="text-xs text-bark/40 hover:text-red-600"
+                        >
+                          Remove this plan
+                        </button>
+                      </form>
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <Panel title="Add a plan" summary="Put them on the round">
+          <PlanForm
+            customerId={customer.id}
+            properties={propertyOptions}
+            today={date}
+          />
+        </Panel>
+      </section>
+
+      {/* ---------- one-off jobs ---------- */}
+      <section className="mt-6">
+        <h2 className={legend}>Jobs</h2>
+        <p className="mt-1 text-xs text-bark/45">
+          Construction, cleanups, anything that happens once for an agreed
+          price. Mark one finished and it becomes invoiceable.
+        </p>
+        {jobs.length === 0 ? (
+          <p className={`${card} mt-2 text-sm text-bark/50`}>No jobs yet.</p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {jobs.map((job) => {
+              const status = JOB_STATUS[job.status] ?? {
+                label: job.status,
+                style: 'bg-bark/10',
+              };
+              return (
+                <li key={job.id} className={`${card} text-sm`}>
+                  <details>
+                    <summary className="cursor-pointer">
+                      <span className="flex flex-wrap items-baseline gap-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${status.style}`}
+                        >
+                          {status.label}
+                        </span>
+                        <span className="font-medium">{job.title}</span>
+                        <span className="text-bark/60">
+                          {formatMoney(job.priceCents + job.materialsCents)}
+                        </span>
+                        {job.invoiceId && (
+                          <span className="text-[11px] text-bark/40">invoiced</span>
+                        )}
+                      </span>
+                      <span className="mt-1 block text-xs text-bark/45">
+                        {labelFor(job.propertyId) ?? 'No address'}
+                        {job.scheduledFor &&
+                          ` · booked ${formatBusinessDate(job.scheduledFor)}`}
+                        {job.completedOn &&
+                          ` · finished ${formatBusinessDate(job.completedOn)}`}
+                      </span>
+                    </summary>
+                    <div className="mt-3 border-t border-black/5 pt-3">
+                      {job.invoiceId ? (
+                        <p className="text-xs text-bark/50">
+                          This job has been invoiced, so it is locked. Cancel
+                          the invoice to change it.
+                        </p>
+                      ) : (
+                        <>
+                          {job.status !== 'done' && (
+                            <form action={finishJob} className="mb-3">
+                              <input type="hidden" name="id" value={job.id} />
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-leaf px-4 py-2 text-xs font-medium text-leaf hover:bg-leaf-soft"
+                              >
+                                Mark finished today
+                              </button>
+                            </form>
+                          )}
+                          <JobForm
+                            customerId={customer.id}
+                            properties={propertyOptions}
+                            job={job}
+                          />
+                          <form action={removeJob} className="mt-3">
+                            <input type="hidden" name="id" value={job.id} />
+                            <input type="hidden" name="customerId" value={customer.id} />
+                            <button
+                              type="submit"
+                              className="text-xs text-bark/40 hover:text-red-600"
+                            >
+                              Delete this job
+                            </button>
+                          </form>
+                        </>
+                      )}
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <Panel title="Add a job" summary="Add a job">
+          <JobForm customerId={customer.id} properties={propertyOptions} />
+        </Panel>
+      </section>
+
+      {/* ---------- extra lines ---------- */}
+      <section className="mt-6">
+        <h2 className={legend}>Extra charges</h2>
+        {extras.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {extras.map((extra) => (
+              <li
+                key={extra.id}
+                className={`${card} flex flex-wrap items-baseline gap-x-3 py-2 text-sm`}
+              >
+                <span className="w-28 shrink-0 text-bark/50">
+                  {formatBusinessDate(extra.incurredOn)}
+                </span>
+                <span className="min-w-0 flex-1">{extra.description}</span>
+                <span
+                  className={`font-semibold ${extra.amountCents < 0 ? 'text-amber-800' : 'text-leaf'}`}
+                >
+                  {formatMoney(extra.amountCents)}
+                </span>
+                {extra.invoiceId ? (
+                  <span className="text-[11px] text-bark/40">invoiced</span>
+                ) : (
+                  <form action={removeExtra}>
+                    <input type="hidden" name="id" value={extra.id} />
+                    <input type="hidden" name="customerId" value={customer.id} />
+                    <button
+                      type="submit"
+                      aria-label="Remove"
+                      className="px-1 text-bark/30 hover:text-red-600"
+                    >
+                      ×
+                    </button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <Panel title="Add a charge" summary="Add materials, a callout or a discount">
+          <ExtraForm customerId={customer.id} today={date} />
+        </Panel>
+      </section>
+
+      {/* ---------- history ---------- */}
       <section className="mt-6">
         <h2 className={legend}>Visit history</h2>
         {accuracy && (
@@ -140,87 +465,79 @@ export default async function CustomerPage({
             estimate.
           </p>
         )}
-        <div className={`${card} mt-2 overflow-x-auto`}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className={legend}>
-                <th className="pb-2 text-left font-semibold">Date</th>
-                <th className="pb-2 text-left font-semibold">Property</th>
-                <th className="pb-2 text-right font-semibold">Est.</th>
-                <th className="pb-2 text-right font-semibold">Actual</th>
-                <th className="pb-2 text-right font-semibold">Invoiced</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((visit) => {
-                const plan = planById(visit.planId);
-                const property = plan ? propertyById(plan.propertyId) : undefined;
-                const over =
-                  visit.actualMinutes && plan
-                    ? visit.actualMinutes - plan.estimatedMinutes
-                    : null;
-                return (
-                  <tr key={visit.id} className="border-t border-black/5">
-                    <td className="py-1.5">{formatBusinessDate(visit.date)}</td>
-                    <td className="py-1.5 text-bark/60">{property?.addressLine ?? '—'}</td>
-                    <td className="py-1.5 text-right text-bark/50">
-                      {plan ? formatMinutes(plan.estimatedMinutes) : '—'}
-                    </td>
-                    <td className="py-1.5 text-right">
-                      {visit.status === 'skipped' ? (
-                        <span className="text-amber-800">Skipped</span>
-                      ) : visit.actualMinutes ? (
-                        <>
-                          {formatMinutes(visit.actualMinutes)}
-                          {over !== null && over !== 0 && (
-                            <span className={over > 0 ? 'text-amber-700' : 'text-leaf'}>
-                              {' '}({over > 0 ? '+' : ''}{over})
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="py-1.5 text-right text-bark/50">
-                      {visit.invoiceId ? '✓' : visit.status === 'done' ? 'Not yet' : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {history.length === 0 && (
-          <p className="mt-2 text-sm text-bark/50">
-            No visits recorded yet.
+        {history.length === 0 ? (
+          <p className={`${card} mt-2 text-sm text-bark/50`}>
+            No visits recorded yet. Tick jobs off the run sheet as you do them.
           </p>
-        )}
-        {history.some((v) => v.notes) && (
-          <ul className="mt-2 space-y-1 text-xs text-bark/50">
-            {history
-              .filter((v) => v.notes)
-              .map((v) => (
-                <li key={v.id}>
-                  {formatBusinessDate(v.date)} — {v.notes}
-                </li>
-              ))}
-          </ul>
+        ) : (
+          <div className={`${card} mt-2 overflow-x-auto`}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className={legend}>
+                  <th className="pb-2 text-left font-semibold">Date</th>
+                  <th className="pb-2 text-left font-semibold">Property</th>
+                  <th className="pb-2 text-right font-semibold">Est.</th>
+                  <th className="pb-2 text-right font-semibold">Actual</th>
+                  <th className="pb-2 text-right font-semibold">Invoiced</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((visit) => {
+                  const plan = round.planById(visit.planId);
+                  const property = plan
+                    ? round.propertyById(plan.propertyId)
+                    : undefined;
+                  const over =
+                    visit.actualMinutes && plan
+                      ? visit.actualMinutes - plan.estimatedMinutes
+                      : null;
+                  return (
+                    <tr key={visit.id} className="border-t border-black/5">
+                      <td className="py-1.5">{formatBusinessDate(visit.date)}</td>
+                      <td className="py-1.5 text-bark/60">
+                        {property?.addressLine ?? '—'}
+                      </td>
+                      <td className="py-1.5 text-right text-bark/50">
+                        {plan ? formatMinutes(plan.estimatedMinutes) : '—'}
+                      </td>
+                      <td className="py-1.5 text-right">
+                        {visit.status === 'skipped' ? (
+                          <span className="text-amber-800">Skipped</span>
+                        ) : visit.actualMinutes ? (
+                          <>
+                            {formatMinutes(visit.actualMinutes)}
+                            {over !== null && over !== 0 && (
+                              <span className={over > 0 ? 'text-amber-700' : 'text-leaf'}>
+                                {' '}({over > 0 ? '+' : ''}{over})
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="py-1.5 text-right text-bark/50">
+                        {visit.invoiceId ? '✓' : visit.status === 'done' ? 'Not yet' : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
-      {/* Tucked behind a disclosure so it cannot be hit by accident on a
-          phone. Only the owner is allowed to delete — the database enforces
-          that, not this button. */}
       <details className="mt-8">
         <summary className="cursor-pointer text-sm text-bark/45 hover:text-bark">
           Remove this customer
         </summary>
         <div className={`${card} mt-2 border-red-200`}>
           <p className="text-sm text-bark/70">
-            Deletes {customer.name}, their {properties.length} propert
-            {properties.length === 1 ? 'y' : 'ies'}, {plans.length} plan
-            {plans.length === 1 ? '' : 's'} and {history.length} visit
+            Deletes {customer.name}, their {properties.length} address
+            {properties.length === 1 ? '' : 'es'}, {plans.length} plan
+            {plans.length === 1 ? '' : 's'}, {jobs.length} job
+            {jobs.length === 1 ? '' : 's'} and {history.length} visit
             {history.length === 1 ? '' : 's'}. This cannot be undone.
           </p>
           <form action={deleteCustomer} className="mt-3">
@@ -235,5 +552,28 @@ export default async function CustomerPage({
         </div>
       </details>
     </main>
+  );
+}
+
+/** A disclosure that keeps a form out of the way until it is wanted. */
+function Panel({
+  title,
+  summary,
+  children,
+}: {
+  title: string;
+  summary: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer text-sm font-medium text-leaf hover:underline">
+        + {summary}
+      </summary>
+      <div className={`${card} mt-2`}>
+        <p className={legend}>{title}</p>
+        <div className="mt-3">{children}</div>
+      </div>
+    </details>
   );
 }
