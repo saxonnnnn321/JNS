@@ -14,6 +14,7 @@ import {
 } from '@/lib/crm/schedule';
 import { addDays } from '@/lib/dates';
 import { loadRound } from '@/lib/crm/queries';
+import { markVisitDone, undoVisit } from './round-actions';
 
 // These pages ask what day it is, so they must not be prerendered at build
 // time — a statically generated run sheet would freeze on the build date and
@@ -24,6 +25,10 @@ export const dynamic = 'force-dynamic';
 export default async function TodayPage() {
   const date = today();
   const { lookup, planById, plans, visits, isEmpty } = await loadRound();
+  // Which of today's stops have already been ticked off.
+  const doneKeys = new Set(
+    visits.filter((v) => v.status === 'done').map((v) => `${v.planId}|${v.date}`),
+  );
   const stops = roundForDay(lookup, date);
   const week = roundBetween(lookup, weekStart(date), addDays(weekStart(date), 6));
 
@@ -126,6 +131,45 @@ export default async function TodayPage() {
                     <p className="mt-1 text-xs text-amber-800">
                       ⚠ {stop.property.accessNotes}
                     </p>
+                  )}
+
+                  {/* Ticking it off is what turns the job into income on the
+                      split, and what feeds the rate-card accuracy figure. */}
+                  {doneKeys.has(`${stop.plan.id}|${stop.date}`) ? (
+                    <form action={undoVisit} className="mt-2 flex items-center gap-3">
+                      <input type="hidden" name="planId" value={stop.plan.id} />
+                      <input type="hidden" name="visitDate" value={stop.date} />
+                      <span className="text-xs font-semibold text-leaf">
+                        ✓ Done
+                      </span>
+                      <button
+                        type="submit"
+                        className="text-xs text-bark/40 hover:text-bark"
+                      >
+                        undo
+                      </button>
+                    </form>
+                  ) : (
+                    <form
+                      action={markVisitDone}
+                      className="mt-2 flex flex-wrap items-center gap-2"
+                    >
+                      <input type="hidden" name="planId" value={stop.plan.id} />
+                      <input type="hidden" name="visitDate" value={stop.date} />
+                      <input
+                        name="actualMinutes"
+                        inputMode="numeric"
+                        placeholder={`${stop.plan.estimatedMinutes} min`}
+                        aria-label="How long it actually took, in minutes"
+                        className="w-24 rounded-lg border border-black/15 px-2 py-1.5 text-xs outline-none focus:border-leaf"
+                      />
+                      <button
+                        type="submit"
+                        className="min-h-9 rounded-lg border border-leaf px-4 text-xs font-medium text-leaf hover:bg-leaf-soft"
+                      >
+                        Tick off
+                      </button>
+                    </form>
                   )}
                 </div>
               </li>

@@ -172,3 +172,144 @@ export async function removeRow(data: FormData): Promise<void> {
   revalidatePath('/timesheet');
   revalidatePath('/timesheet/split');
 }
+
+// ---------------------------------------------------------------------------
+// The clock
+// ---------------------------------------------------------------------------
+
+/** A timer left running overnight is a mistake, not a 14 hour shift. */
+const LONG_TIMER_MINUTES = 12 * 60;
+const MAX_ENTRY_MINUTES = 24 * 60;
+
+export async function startTimer(
+  _previous: FormResult,
+  data: FormData,
+): Promise<FormResult> {
+  const staff = await currentStaff();
+  if (!staff) return { error: 'Not signed in.' };
+
+  const description = field(data, 'description').trim().slice(0, 300);
+  const customerId = field(data, 'customerId');
+
+  const supabase = await createClient();
+  // One clock per person. Starting a second replaces the first rather than
+  // quietly double-counting the same hour.
+  const { error } = await supabase.from('running_timers').upsert(
+    {
+      staff_id: staff.id,
+      started_at: new Date().toISOString(),
+      description: description || null,
+      customer_id: customerId || null,
+    },
+    { onConflict: 'staff_id' },
+  );
+
+  if (error) return fail(error.message, 'Could not start the clock');
+
+  revalidatePath('/timesheet');
+  return { ok: true };
+}
+
+export async function stopTimer(
+  _previous: FormResult,
+  data: FormData,
+): Promise<FormResult> {
+  const staff = await currentStaff();
+  if (!staff) return { error: 'Not signed in.' };
+
+  const supabase = await createClient();
+  const { data: timer, error: readError } = await supabase
+    .from('running_timers')
+    .select('started_at, description, customer_id')
+    .eq('staff_id', staff.id)
+    .maybeSingle();
+
+  if (readError) return fail(readError.message, 'Could not find the clock');
+  if (!timer) return { error: 'No clock running.' };
+
+  const elapsedMs = Date.now() - new Date(timer.started_at).getTime();
+  const minutes = Math.min(
+    MAX_ENTRY_MINUTES,
+    Math.max(1, Math.round(elapsedMs / 60_000)),
+  );
+
+  // Whatever was typed while it ran wins over what it was started with.
+  const description = field(data, 'description').trim() || timer.description;
+
+  const { error: insertError } = await supabase.from('timesheet_entries').insert({
+    staff_id: staff.id,
+    work_date: businessDate(),
+    minutes,
+    description: description || null,
+    customer_id: timer.customer_id,
+  });
+
+  if (insertError) return fail(insertError.message, 'Could not save those hours');
+
+  await supabase.from('running_timers').delete().eq('staff_id', staff.id);
+
+  revalidatePath('/timesheet');
+  revalidatePath('/timesheet/split');
+
+  if (minutes >= LONG_TIMER_MINUTES) {
+    return {
+      error: `Logged ${(minutes / 60).toFixed(1)} hours — that clock had been running a long time. Check it and edit if it was left on.`,
+    };
+  }
+  return { ok: true };
+}
+
+/** Started it by mistake. Throws the clock away without logging anything. */
+export async function cancelTimer(): Promise<void> {
+  const staff = await currentStaff();
+  if (!staff) return;
+  const supabase = await createClient();
+  await supabase.from('running_timers').delete().eq('staff_id', staff.id);
+  revalidatePath('/timesheet');
+}
+
+// ---------------------------------------------------------------------------
+// Fixing a mistake
+// ---------------------------------------------------------------------------
+
+export async function updateEntry(
+  _previous: FormResult,
+  data: FormData,
+): Promise<FormResult> {
+  const parsed = z
+    .object({
+      id: z.string().uuid(),
+      workDate: day,
+      hours: z.coerce.number().min(0.05, 'How long?').max(24),
+      description: z.string().trim().max(300).optional(),
+      customerId: z.string().uuid().optional().or(z.literal('')),
+    })
+    .safeParse({
+      id: field(data, 'id'),
+      workDate: field(data, 'workDate'),
+      hours: field(data, 'hours'),
+      description: field(data, 'description'),
+      customerId: field(data, 'customerId'),
+    });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Check the form' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('timesheet_entries')
+    .update({
+      work_date: parsed.data.workDate,
+      minutes: Math.round(parsed.data.hours * 60),
+      description: parsed.data.description || null,
+      customer_id: parsed.data.customerId || null,
+    })
+    .eq('id', parsed.data.id);
+
+  if (error) return fail(error.message, 'Could not save that change');
+
+  revalidatePath('/timesheet');
+  revalidatePath('/timesheet/split');
+  return { ok: true };
+}

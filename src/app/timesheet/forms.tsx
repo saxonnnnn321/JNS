@@ -1,7 +1,13 @@
 'use client';
 
 import { useActionState } from 'react';
-import { logDrawing, logHours, logIncome, type FormResult } from './actions';
+import {
+  logDrawing,
+  logHours,
+  logIncome,
+  updateEntry,
+  type FormResult,
+} from './actions';
 
 const input =
   'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
@@ -58,6 +64,7 @@ export function HoursForm({
   today,
   defaultHours,
   defaultWhat,
+  customers,
 }: {
   people: Person[];
   canChoose: boolean;
@@ -66,6 +73,7 @@ export function HoursForm({
   /** Prefilled when the app-wide microphone heard "log three hours". */
   defaultHours?: string;
   defaultWhat?: string;
+  customers: Person[];
 }) {
   const [result, submit, pending] = useActionState<FormResult, FormData>(
     logHours,
@@ -101,8 +109,21 @@ export function HoursForm({
           />
         </label>
       </div>
-      <div className="mt-3 flex flex-wrap items-end gap-3">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm">
+          Which job <span className="text-bark/40">(optional)</span>
+          <select name="customerId" className={input} defaultValue="">
+            <option value="">Not against a customer</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <WhoField people={people} canChoose={canChoose} self={self} name="staffId" />
+      </div>
+      <div className="mt-3">
         <button type="submit" className={primary} disabled={pending}>
           {pending ? 'Saving…' : 'Log hours'}
         </button>
@@ -184,6 +205,74 @@ export function IncomeForm({ today }: { today: string }) {
       <div className="mt-3">
         <button type="submit" className={primary} disabled={pending}>
           {pending ? 'Saving…' : 'Log income'}
+        </button>
+      </div>
+      <Message result={result} />
+    </form>
+  );
+}
+
+/**
+ * Fixing an entry in place. Tucked inside a disclosure on the row, so the
+ * list stays a list until you need to change something.
+ */
+export function EditEntry({
+  id,
+  workDate,
+  hours,
+  description,
+  customerId,
+  customers,
+}: {
+  id: string;
+  workDate: string;
+  hours: string;
+  description: string;
+  customerId?: string;
+  customers: Person[];
+}) {
+  const [result, submit, pending] = useActionState<FormResult, FormData>(
+    updateEntry,
+    null,
+  );
+
+  return (
+    <form action={submit} className="mt-2 w-full border-t border-black/5 pt-2">
+      <input type="hidden" name="id" value={id} />
+      <div className="grid gap-2 sm:grid-cols-4">
+        <label className="block text-xs">
+          Day
+          <input type="date" name="workDate" className={input} defaultValue={workDate} />
+        </label>
+        <label className="block text-xs">
+          Hours
+          <input
+            name="hours"
+            className={input}
+            inputMode="decimal"
+            defaultValue={hours}
+            required
+          />
+        </label>
+        <label className="block text-xs sm:col-span-2">
+          What you did
+          <input name="description" className={input} defaultValue={description} />
+        </label>
+      </div>
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <label className="block text-xs">
+          Which job
+          <select name="customerId" className={input} defaultValue={customerId ?? ''}>
+            <option value="">Not against a customer</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" className={primary} disabled={pending}>
+          {pending ? 'Saving…' : 'Save'}
         </button>
       </div>
       <Message result={result} />

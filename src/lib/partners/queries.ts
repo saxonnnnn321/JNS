@@ -37,6 +37,14 @@ export type MoneyEntry = {
   staffName?: string;
 };
 
+export type RunningTimer = {
+  staffId: string;
+  staffName: string;
+  startedAt: string;
+  description?: string;
+  customerId?: string;
+};
+
 export type PeriodBooks = {
   from: string;
   to: string;
@@ -47,8 +55,14 @@ export type PeriodBooks = {
   roundIncomeCents: number;
   manualIncomeCents: number;
   retentionBasisPoints: number;
+  /** Clocks running right now, whoever started them. */
+  runningTimers: RunningTimer[];
+  /** For the "which job?" picker. Name only. */
+  customers: { id: string; name: string }[];
   /** No partner rows yet — the migration has not been run. */
   notConfigured: boolean;
+  /** running_timers is missing, so migration 0005 has not been run. */
+  timerUnavailable: boolean;
 };
 
 function emptyBooks(from: string, to: string): PeriodBooks {
@@ -66,7 +80,10 @@ function emptyBooks(from: string, to: string): PeriodBooks {
     roundIncomeCents: 0,
     manualIncomeCents: 0,
     retentionBasisPoints: DEFAULT_RETENTION_BASIS_POINTS,
+    runningTimers: [],
+    customers: [],
     notConfigured: true,
+    timerUnavailable: true,
   };
 }
 
@@ -86,6 +103,8 @@ export async function loadPeriodBooks(
     drawingResult,
     incomeResult,
     visitResult,
+    timerResult,
+    customerResult,
   ] = await Promise.all([
     supabase.from('staff').select('id, full_name, email'),
     supabase
@@ -120,6 +139,10 @@ export async function loadPeriodBooks(
       .eq('status', 'done')
       .gte('visit_date', from)
       .lte('visit_date', to),
+    supabase
+      .from('running_timers')
+      .select('staff_id, started_at, description, customer_id'),
+    supabase.from('customers').select('id, name').order('name').limit(500),
   ]);
 
   // The partners table only exists once migration 0004 has been run. Say so
@@ -237,6 +260,26 @@ export async function loadPeriodBooks(
   const retentionBasisPoints =
     settingsResult.data?.retention_basis_points ?? DEFAULT_RETENTION_BASIS_POINTS;
 
+  // running_timers arrives in a later migration than the rest, so a missing
+  // table means "not run yet", not "broken".
+  const timerUnavailable = Boolean(timerResult.error);
+  const runningTimers: RunningTimer[] = timerUnavailable
+    ? []
+    : (
+        (timerResult.data ?? []) as {
+          staff_id: string;
+          started_at: string;
+          description: string | null;
+          customer_id: string | null;
+        }[]
+      ).map((row) => ({
+        staffId: row.staff_id,
+        staffName: staffNames.get(row.staff_id) ?? 'Unknown',
+        startedAt: row.started_at,
+        description: row.description ?? undefined,
+        customerId: row.customer_id ?? undefined,
+      }));
+
   return {
     from,
     to,
@@ -251,6 +294,9 @@ export async function loadPeriodBooks(
     roundIncomeCents,
     manualIncomeCents,
     retentionBasisPoints,
+    runningTimers,
+    customers: (customerResult.data ?? []) as { id: string; name: string }[],
     notConfigured: partnerInputs.length === 0,
+    timerUnavailable,
   };
 }
