@@ -5,7 +5,8 @@ import { formatMoney } from '@/lib/format';
 import { formatBusinessDate } from '@/lib/dates';
 import { today } from '@/lib/crm/schedule';
 import { loadInvoice } from '@/lib/invoicing/queries';
-import { BUSINESS } from '@/lib/business';
+import { BUSINESS, hasBankDetails } from '@/lib/business';
+import { isValidAbn } from '@/lib/abn';
 import { deleteInvoice, setInvoiceStatus } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,8 @@ export default async function InvoicePage({
   if (!invoice) notFound();
 
   const gst = BUSINESS.gstRegistered;
-  const placeholderAbn = BUSINESS.abn.replace(/\D/g, '') === '00000000000';
+  // A checksum, not a placeholder check — this catches a transposed digit too.
+  const abnLooksWrong = !isValidAbn(BUSINESS.abn);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -50,11 +52,20 @@ export default async function InvoicePage({
         )}
       </p>
 
-      {placeholderAbn && (
+      {abnLooksWrong && (
         <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-          Your ABN is still the placeholder <b>{BUSINESS.abn}</b>. Do not send
-          this — without a real ABN your customer is legally required to
-          withhold 47% of the payment. Fix it in <code>src/lib/business.ts</code>.
+          <b>{BUSINESS.abn}</b> does not pass the ABN checksum. Do not send
+          this — a customer who cannot match your ABN to the register is
+          legally required to withhold 47% of the payment.
+        </p>
+      )}
+
+      {!hasBankDetails && (
+        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          No bank account set yet, so the invoice asks the customer to call you
+          to arrange payment rather than printing anything they could pay into
+          by mistake. Send me the BSB and account number once the business
+          account is open.
         </p>
       )}
 

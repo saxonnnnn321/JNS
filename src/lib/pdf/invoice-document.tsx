@@ -11,7 +11,7 @@
  */
 
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
-import { BUSINESS } from '../business';
+import { BUSINESS, hasBankDetails } from '../business';
 import { formatBusinessDate } from '../dates';
 import { formatMoney } from '../format';
 
@@ -114,14 +114,21 @@ export type InvoiceDocumentData = {
 
 export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
   const gst = BUSINESS.gstRegistered;
-  const address = [
-    BUSINESS.address.addressLine,
-    BUSINESS.address.suburb,
-    BUSINESS.address.state,
-    BUSINESS.address.postcode,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  // Only worth printing if there is a street or suburb behind it. A lone
+  // "NSW" under the business name looks like something went wrong.
+  const hasAddress =
+    BUSINESS.address.addressLine.trim() !== '' ||
+    BUSINESS.address.suburb.trim() !== '';
+  const address = hasAddress
+    ? [
+        BUSINESS.address.addressLine,
+        BUSINESS.address.suburb,
+        BUSINESS.address.state,
+        BUSINESS.address.postcode,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : '';
 
   return (
     <Document
@@ -199,10 +206,18 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
 
         <View style={styles.pay}>
           <Text style={styles.label}>HOW TO PAY</Text>
-          <Text>
-            {BUSINESS.payment.accountName} · BSB {BUSINESS.payment.bsb} · Account{' '}
-            {BUSINESS.payment.accountNumber}
-          </Text>
+          {hasBankDetails ? (
+            <Text>
+              {BUSINESS.payment.accountName} · BSB {BUSINESS.payment.bsb} ·
+              Account {BUSINESS.payment.accountNumber}
+            </Text>
+          ) : (
+            /* Printing zeros here would invite someone to pay them. */
+            <Text>
+              Bank details to follow — please call {BUSINESS.phone} or email{' '}
+              {BUSINESS.email} to arrange payment.
+            </Text>
+          )}
           <Text style={styles.muted}>
             Please use {invoice.reference} as the reference. Payment terms{' '}
             {BUSINESS.payment.termsDays} days.

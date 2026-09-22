@@ -9,12 +9,16 @@ export const BUSINESS = {
   tradingName: 'JNS Landscaping',
   legalName: 'JNS Landscaping',
 
-  /** TODO: your ABN. Required on tax invoices. */
-  abn: '00 000 000 000',
+  /**
+   * Checked against the ATO checksum by lib/abn.ts, which has a test proving
+   * this exact number is valid. Without a real ABN on an invoice a customer
+   * is legally required to withhold 47% of the payment.
+   */
+  abn: '79 123 765 026',
 
-  /** TODO */
-  phone: '0400 000 000',
-  email: 'hello@example.com.au',
+  /** The number customers ring. Saxon's second line is 0468 566 820. */
+  phone: '0491 973 965',
+  email: 'jnslandscapes1@gmail.com',
 
   address: {
     addressLine: '',
@@ -39,12 +43,19 @@ export const BUSINESS = {
   gstRegistered: false,
   gstRate: 0.1,
 
-  /** Where the money goes. Shown on invoices. */
+  /**
+   * Where the money goes. Shown on invoices.
+   *
+   * EMPTY ON PURPOSE — the business account is still being opened. Empty is
+   * safer than a placeholder: the invoice notices and prints "bank details
+   * to follow" rather than a row of zeros a customer might actually try to
+   * pay into. Fill bsb and accountNumber in and it starts printing them.
+   */
   payment: {
     bankName: '',
     accountName: 'JNS Landscaping',
-    bsb: '000-000',
-    accountNumber: '00000000',
+    bsb: '',
+    accountNumber: '',
     termsDays: 7,
   },
 
@@ -55,3 +66,7 @@ export const BUSINESS = {
     'This quote is valid for 30 days from the date of issue.',
   ],
 } as const;
+
+/** True once a customer could actually pay the invoice. */
+export const hasBankDetails =
+  BUSINESS.payment.bsb.trim() !== '' && BUSINESS.payment.accountNumber.trim() !== '';
