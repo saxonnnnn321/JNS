@@ -99,6 +99,13 @@ export function extractHours(text: string): number | null {
 
 const NAV_TARGETS: { href: string; label: string; match: RegExp }[] = [
   {
+    href: '/invoices',
+    label: 'invoices',
+    // "owed" but deliberately not "owes": "who owes who" is the partnership
+    // split, which is the next entry down and a different question entirely.
+    match: /\b(invoices?|invoicing|owed|outstanding|unpaid|who owes me)\b/i,
+  },
+  {
     href: '/timesheet/split',
     label: 'the split',
     match: /\b(the split|split it|square up|squaring up|who owes|settle up)\b/i,
@@ -132,10 +139,6 @@ const NAV_TARGETS: { href: string; label: string; match: RegExp }[] = [
 
 /** Things it is reasonable to ask for that the app genuinely cannot do yet. */
 const NOT_BUILT: { match: RegExp; say: string }[] = [
-  {
-    match: /\b(invoice|invoicing|send the invoice|bill them)\b/i,
-    say: 'Invoicing is not built yet.',
-  },
   {
     match: /\b(mark|tick)\b.*\b(done|complete|finished)\b/i,
     say: 'Ticking jobs off by voice is not built yet.',

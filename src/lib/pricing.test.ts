@@ -48,8 +48,12 @@ describe('estimateQuote', () => {
     // 320 m2 mow + 85 m edge + 120 m2 blow down + setup, at $150/hr.
     expect(standard.totalMinutes).toBeCloseTo(88.04, 1);
     expect(standard.subtotalCents).toBe(22000);
-    expect(standard.gstCents).toBe(2200);
-    expect(standard.totalCents).toBe(24200);
+    // GST follows whether the business is registered, which is a real setting
+    // that changes when turnover crosses $75k. Pinning a number here would
+    // make a correct config change look like a broken engine.
+    const expectedGst = BUSINESS.gstRegistered ? 2200 : 0;
+    expect(standard.gstCents).toBe(expectedGst);
+    expect(standard.totalCents).toBe(22000 + expectedGst);
     expect(standard.minimumChargeApplied).toBe(false);
   });
 
@@ -109,9 +113,15 @@ describe('estimateQuote', () => {
       }),
       AT,
     );
+    // An hour at the $150 rate, plus GST only if the business charges it.
+    const anHour = 15000;
     expect(with_.options[0].totalCents - without.options[0].totalCents).toBe(
-      Math.round(15000 * 1.1),
+      BUSINESS.gstRegistered ? Math.round(anHour * 1.1) : anHour,
     );
+    // The subtotal is the part that must never move with a tax setting.
+    expect(
+      with_.options[0].subtotalCents - without.options[0].subtotalCents,
+    ).toBe(anHour);
     expect(with_.options[0].blurb.toLowerCase()).toContain('weed garden beds');
   });
 

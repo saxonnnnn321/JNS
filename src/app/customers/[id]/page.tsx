@@ -6,6 +6,8 @@ import { addDays, formatBusinessDate } from '@/lib/dates';
 import { dueDates, estimateAccuracy, today, weeklyRecurringCents } from '@/lib/crm/schedule';
 import { loadRound } from '@/lib/crm/queries';
 import { deleteCustomer } from '../actions';
+import { invoiceCustomer } from '@/app/invoices/actions';
+import { invoiceableVisitsFor } from '@/lib/invoicing/collect';
 
 export default async function CustomerPage({
   params,
@@ -13,10 +15,15 @@ export default async function CustomerPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const round = await loadRound();
   const { customerById, planById, plansFor, propertiesFor, propertyById, visitsFor } =
-    await loadRound();
+    round;
   const customer = customerById(id);
   if (!customer) notFound();
+
+  // Work ticked off and not yet billed. This is what an invoice would cover.
+  const unbilled = invoiceableVisitsFor(round, id);
+  const unbilledCents = unbilled.reduce((total, v) => total + v.priceCents, 0);
 
   const date = today();
   const plans = plansFor(id);
@@ -91,6 +98,35 @@ export default async function CustomerPage({
             );
           })}
         </div>
+      </section>
+
+      <section className={`${card} mt-6`}>
+        <p className={legend}>Invoicing</p>
+        {unbilled.length === 0 ? (
+          <p className="mt-2 text-sm text-bark/60">
+            Nothing waiting to be billed. Tick jobs off the run sheet as you
+            finish them and they show up here.
+          </p>
+        ) : (
+          <>
+            <p className="mt-2 text-sm">
+              <b>{unbilled.length}</b> visit{unbilled.length === 1 ? '' : 's'}{' '}
+              done and not yet invoiced — {formatMoney(unbilledCents)}.
+            </p>
+            <form action={invoiceCustomer} className="mt-3">
+              <input type="hidden" name="customerId" value={customer.id} />
+              <button
+                type="submit"
+                className="rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90"
+              >
+                Invoice for work done
+              </button>
+            </form>
+            <p className="mt-2 text-xs text-bark/45">
+              Makes a draft you can read before anything is sent.
+            </p>
+          </>
+        )}
       </section>
 
       <section className="mt-6">

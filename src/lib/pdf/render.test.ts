@@ -46,3 +46,29 @@ describe('QuoteDocument', () => {
     }
   }, 30_000);
 });
+
+describe('renderInvoicePdf', () => {
+  it('renders a real PDF', async () => {
+    const { renderInvoicePdf } = await import('./render-invoice');
+    const pdf = await renderInvoicePdf({
+      reference: 'INV-0001',
+      issuedDate: '2026-09-22',
+      dueDate: '2026-09-29',
+      customer: { name: 'Dave Thompson', email: 'dave@example.com' },
+      lines: [
+        {
+          description: '5 Hope Street, Penrith — Mow, edge and blow down (7 Sep, 21 Sep)',
+          quantity: 2,
+          unit: 'visits',
+          amountCents: 61_600,
+        },
+      ],
+      subtotalCents: 61_600,
+      gstCents: 0,
+      totalCents: 61_600,
+    });
+    // %PDF- is the file signature. If @react-pdf throws, this never runs.
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.length).toBeGreaterThan(1000);
+  });
+});

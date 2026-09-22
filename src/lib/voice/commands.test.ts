@@ -172,11 +172,23 @@ describe('routeCommand — falling back', () => {
   });
 
   it('says so plainly when the app cannot do it yet', () => {
-    expect(routeCommand('send the invoice to Dave', DIRECTORY)).toMatchObject({
-      kind: 'unsupported',
-    });
     expect(routeCommand('mark that one done', DIRECTORY)).toMatchObject({
       kind: 'unsupported',
+    });
+  });
+
+  it('opens the invoice list', () => {
+    expect(routeCommand('what am I owed', DIRECTORY)).toMatchObject({
+      kind: 'navigate',
+      href: '/invoices',
+    });
+  });
+
+  it('takes "invoice Dave" to Dave, where the button is', () => {
+    // Voice never bills anyone. It opens the page with the button on it.
+    expect(routeCommand('invoice Dave Thompson', DIRECTORY)).toMatchObject({
+      kind: 'navigate',
+      href: '/customers/c1',
     });
   });
 

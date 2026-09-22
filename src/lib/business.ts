@@ -24,13 +24,19 @@ export const BUSINESS = {
   },
 
   /**
-   * Set to false if you are NOT registered for GST (turnover under $75k).
+   * FALSE, because JNS is not registered for GST yet.
    *
-   * This matters: if you are not registered you must NOT charge GST, and the
-   * document is an "Invoice", not a "Tax invoice". The engine and the PDF both
-   * respect this flag, so get it right once here.
+   * Under $75k turnover you are not required to register, and if you are not
+   * registered you must NOT charge GST — the document is an "Invoice", not a
+   * "Tax invoice", and there is no 10% line. Charging GST you are not
+   * registered to collect is the kind of mistake that is expensive to unwind.
+   *
+   * WHEN YOU REGISTER: flip this one word to `true`. The engine and the PDF
+   * both read it, so quotes and invoices start showing GST from that moment —
+   * nothing else needs changing. You must register within 21 days of your
+   * rolling 12-month turnover reaching $75,000.
    */
-  gstRegistered: true,
+  gstRegistered: false,
   gstRate: 0.1,
 
   /** Where the money goes. Shown on invoices. */
