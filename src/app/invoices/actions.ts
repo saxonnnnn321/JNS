@@ -143,3 +143,74 @@ export async function deleteInvoice(data: FormData): Promise<void> {
   revalidatePath('/invoices');
   redirect('/invoices');
 }
+
+// ---------------------------------------------------------------------------
+// Sending it
+// ---------------------------------------------------------------------------
+
+export type SendResult = { error: string } | { ok: string } | null;
+
+/**
+ * Email the invoice, with the PDF attached.
+ *
+ * Refuses rather than sends when something would embarrass you in front of a
+ * customer: no email on file, or an ABN that fails its checksum. Those are
+ * cheap to fix now and expensive to fix after the fact.
+ */
+export async function emailInvoice(
+  _previous: SendResult,
+  data: FormData,
+): Promise<SendResult> {
+  const id = field(data, 'id');
+  if (!id) return { error: 'No invoice.' };
+
+  const { loadInvoice, toDocument } = await import('@/lib/invoicing/queries');
+  const { renderInvoicePdf } = await import('@/lib/pdf/render-invoice');
+  const { invoiceBody, invoiceSubject } = await import('@/lib/email/compose');
+  const { sendEmail, EmailError } = await import('@/lib/email/send');
+  const { isValidAbn } = await import('@/lib/abn');
+  const { today } = await import('@/lib/crm/schedule');
+
+  const invoice = await loadInvoice(id, today());
+  if (!invoice) return { error: 'Invoice not found.' };
+  if (!invoice.customerEmail) {
+    return {
+      error: `No email address on file for ${invoice.customerName}. Add one on their customer page.`,
+    };
+  }
+  if (!isValidAbn(BUSINESS.abn)) {
+    return {
+      error:
+        'Your ABN does not pass the checksum, so this will not go out. Fix it before sending anything.',
+    };
+  }
+
+  const shape = {
+    reference: invoice.reference,
+    customerName: invoice.customerName,
+    totalCents: invoice.totalCents,
+    dueDate: invoice.dueDate,
+    gstRegistered: BUSINESS.gstRegistered,
+  };
+
+  try {
+    const pdf = await renderInvoicePdf(toDocument(invoice));
+    await sendEmail({
+      to: invoice.customerEmail,
+      subject: invoiceSubject(shape),
+      text: invoiceBody(shape),
+      attachments: [{ filename: `${invoice.reference}.pdf`, content: pdf }],
+    });
+  } catch (cause) {
+    if (cause instanceof EmailError) return { error: cause.message };
+    console.error('could not send the invoice', cause);
+    return { error: 'Could not send it. Check the logs.' };
+  }
+
+  const supabase = await createClient();
+  await supabase.from('invoices').update({ status: 'sent' }).eq('id', id);
+
+  revalidatePath('/invoices');
+  revalidatePath(`/invoices/${id}`);
+  return { ok: `Sent to ${invoice.customerEmail}` };
+}

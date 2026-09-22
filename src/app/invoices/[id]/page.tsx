@@ -8,6 +8,8 @@ import { loadInvoice } from '@/lib/invoicing/queries';
 import { BUSINESS, hasBankDetails } from '@/lib/business';
 import { isValidAbn } from '@/lib/abn';
 import { deleteInvoice, setInvoiceStatus } from '../actions';
+import { SendButton } from '../send-button';
+import { emailConfigured } from '@/lib/email/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,7 +137,7 @@ export default async function InvoicePage({
             </form>
           ))}
 
-        {invoice.customerEmail && (
+        {!emailConfigured && invoice.customerEmail && (
           <a
             href={`mailto:${invoice.customerEmail}?subject=${encodeURIComponent(
               `${BUSINESS.tradingName} — ${gst ? 'Tax invoice' : 'Invoice'} ${invoice.reference}`,
@@ -152,10 +154,20 @@ export default async function InvoicePage({
           </a>
         )}
       </div>
-      <p className="mt-2 text-xs text-bark/45">
-        &ldquo;Open in email&rdquo; writes the message in your own mail app —
-        attach the PDF and send. Sending straight from the app comes next.
-      </p>
+
+      <div className="mt-4">
+        <SendButton
+          invoiceId={invoice.id}
+          to={invoice.customerEmail}
+          configured={emailConfigured}
+        />
+        {emailConfigured && (
+          <p className="mt-2 text-xs text-bark/45">
+            Sends from {BUSINESS.email} with the PDF attached, and marks the
+            invoice as sent.
+          </p>
+        )}
+      </div>
 
       <details className="mt-8">
         <summary className="cursor-pointer text-sm text-bark/45 hover:text-bark">
