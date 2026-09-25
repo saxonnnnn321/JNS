@@ -58,10 +58,10 @@ export default async function CustomerPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ invoice?: string }>;
+  searchParams: Promise<{ invoice?: string; why?: string }>;
 }) {
   const { id } = await params;
-  const { invoice: invoiceFlag } = await searchParams;
+  const { invoice: invoiceFlag, why: invoiceWhy } = await searchParams;
 
   const [round, jobs, extras, claims, receiptList, actuals] = await Promise.all([
     loadRound(),
@@ -149,9 +149,16 @@ export default async function CustomerPage({
         </p>
       )}
       {invoiceFlag === 'failed' && (
-        <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          Could not create the invoice. Check the logs.
-        </p>
+        <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <p className="font-medium">Could not create the invoice.</p>
+          {invoiceWhy && (
+            <p className="mt-1 font-mono text-xs break-words">{invoiceWhy}</p>
+          )}
+          <p className="mt-1 text-xs">
+            If that mentions a column, the database is missing a migration.
+            Send me the message and I will tell you which one.
+          </p>
+        </div>
       )}
 
       {/* ---------- invoicing ---------- */}

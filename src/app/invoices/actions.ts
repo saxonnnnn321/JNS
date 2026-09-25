@@ -83,7 +83,9 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
 
   const base = {
     customer_id: customerId,
-    property_id: round.plansFor(customerId)[0]?.propertyId ?? null,
+    // No property_id here on purpose: `invoices` has no such column. Which
+    // address the work was at lives in the line descriptions, and an invoice
+    // can span several properties anyway.
     status: 'draft',
     issued_date: issued,
     due_date: addDays(issued, BUSINESS.payment.termsDays),
@@ -108,7 +110,13 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
     }
     if (error && !/duplicate key/i.test(error.message)) {
       console.error('could not create the invoice', error);
-      redirect(`/customers/${customerId}?invoice=failed`);
+      // Say what actually went wrong. "Check the logs" is useless advice to
+      // someone standing in a driveway with a phone.
+      redirect(
+        `/customers/${customerId}?invoice=failed&why=${encodeURIComponent(
+          error.message.slice(0, 200),
+        )}`,
+      );
     }
   }
 
