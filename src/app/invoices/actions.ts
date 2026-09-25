@@ -7,8 +7,11 @@ import { loadRound } from '@/lib/crm/queries';
 import { buildInvoice, formatInvoiceReference } from '@/lib/invoicing/build';
 import { invoiceableVisitsFor } from '@/lib/invoicing/collect';
 import {
+  asClaimLikes,
+  billableClaims,
   billableExtras,
   billableJobs,
+  claimsForCustomer,
   extrasForCustomer,
   jobsForCustomer,
 } from '@/lib/invoicing/jobs';
@@ -32,10 +35,11 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
   const customerId = field(data, 'customerId');
   if (!customerId) return;
 
-  const [round, jobs, extras] = await Promise.all([
+  const [round, jobs, extras, claims] = await Promise.all([
     loadRound(),
     jobsForCustomer(customerId),
     extrasForCustomer(customerId),
+    claimsForCustomer(customerId),
   ]);
 
   const visits = invoiceableVisitsFor(round, customerId);
@@ -43,16 +47,23 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
     const property = propertyId ? round.propertyById(propertyId) : undefined;
     return property ? `${property.addressLine}, ${property.suburb}` : undefined;
   };
-  const doneJobs = billableJobs(jobs, labelFor);
+  const doneJobs = billableJobs(jobs, labelFor, asClaimLikes(claims));
+  const openClaims = billableClaims(claims, jobs, labelFor);
   const openExtras = billableExtras(extras);
 
-  if (visits.length === 0 && doneJobs.length === 0 && openExtras.length === 0) {
+  if (
+    visits.length === 0 &&
+    doneJobs.length === 0 &&
+    openClaims.length === 0 &&
+    openExtras.length === 0
+  ) {
     redirect(`/customers/${customerId}?invoice=nothing`);
   }
 
   const built = buildInvoice({
     visits,
     jobs: doneJobs,
+    claims: openClaims,
     extras: openExtras,
     gstRegistered: BUSINESS.gstRegistered,
     gstRate: BUSINESS.gstRate,
@@ -124,6 +135,12 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
           .update({ invoice_id: invoiceId })
           .in('id', built.jobIds)
       : null,
+    built.claimIds.length
+      ? supabase
+          .from('job_claims')
+          .update({ invoice_id: invoiceId })
+          .in('id', built.claimIds)
+      : null,
     built.extraIds.length
       ? supabase
           .from('invoice_extras')
@@ -173,6 +190,7 @@ export async function deleteInvoice(data: FormData): Promise<void> {
     supabase.from('visits').update({ invoice_id: null }).eq('invoice_id', id),
     supabase.from('one_off_jobs').update({ invoice_id: null }).eq('invoice_id', id),
     supabase.from('invoice_extras').update({ invoice_id: null }).eq('invoice_id', id),
+    supabase.from('job_claims').update({ invoice_id: null }).eq('invoice_id', id),
   ]);
   const { error } = await supabase.from('invoices').delete().eq('id', id);
   if (error) {

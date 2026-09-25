@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { supabaseConfigured } from '@/lib/supabase/env';
-import type { InvoiceableExtra, InvoiceableJob } from './build';
+import type {
+  InvoiceableClaim,
+  InvoiceableExtra,
+  InvoiceableJob,
+} from './build';
+import { jobLedger, type ClaimLike } from './claims';
 
 /**
  * One-off jobs and extra invoice lines.
@@ -148,17 +153,40 @@ export async function extrasForCustomer(customerId: string): Promise<Extra[]> {
 export function billableJobs(
   jobs: OneOffJob[],
   propertyLabel: (propertyId?: string) => string | undefined,
+  claims: ClaimLike[] = [],
 ): InvoiceableJob[] {
   return jobs
     .filter((job) => job.status === 'done' && !job.invoiceId && job.completedOn)
-    .map((job) => ({
-      jobId: job.id,
-      title: job.title,
-      propertyLabel: propertyLabel(job.propertyId),
-      completedOn: job.completedOn as string,
-      priceCents: job.priceCents,
-      materialsCents: job.materialsCents,
-    }));
+    .map((job) => {
+      const ledger = jobLedger(job, claims);
+
+      // No stages billed: the job bills as itself, materials on their own
+      // line so the customer can see the split.
+      if (ledger.claimedCents === 0) {
+        return {
+          jobId: job.id,
+          title: job.title,
+          propertyLabel: propertyLabel(job.propertyId),
+          completedOn: job.completedOn as string,
+          priceCents: job.priceCents,
+          materialsCents: job.materialsCents,
+        };
+      }
+
+      // Stages have been billed, so what is left is a single balance. The
+      // price/materials split is meaningless once part of both is paid for.
+      return {
+        jobId: job.id,
+        title: job.title,
+        propertyLabel: propertyLabel(job.propertyId),
+        completedOn: job.completedOn as string,
+        priceCents: ledger.remainingCents,
+        materialsCents: 0,
+        isBalance: true,
+      };
+    })
+    // A job already covered by its stages needs no final line at all.
+    .filter((job) => job.priceCents + job.materialsCents > 0);
 }
 
 export function billableExtras(extras: Extra[]): InvoiceableExtra[] {
@@ -170,4 +198,87 @@ export function billableExtras(extras: Extra[]): InvoiceableExtra[] {
       amountCents: extra.amountCents,
       incurredOn: extra.incurredOn,
     }));
+}
+
+// ---------------------------------------------------------------------------
+// Progress claims
+// ---------------------------------------------------------------------------
+
+export type JobClaim = {
+  id: string;
+  jobId: string;
+  description: string;
+  amountCents: number;
+  claimedOn: string;
+  invoiceId?: string;
+};
+
+export async function claimsForCustomer(customerId: string): Promise<JobClaim[]> {
+  if (!supabaseConfigured) return [];
+  const supabase = await createClient();
+  // Reached through the jobs, because a claim belongs to a job rather than
+  // straight to a customer.
+  const { data: jobRows } = await supabase
+    .from('one_off_jobs')
+    .select('id')
+    .eq('customer_id', customerId);
+
+  const jobIds = ((jobRows ?? []) as { id: string }[]).map((row) => row.id);
+  if (jobIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('job_claims')
+    .select('id, job_id, description, amount_cents, claimed_on, invoice_id')
+    .in('job_id', jobIds)
+    .order('claimed_on', { ascending: true });
+  if (error) return [];
+
+  return (
+    (data ?? []) as {
+      id: string;
+      job_id: string;
+      description: string;
+      amount_cents: number;
+      claimed_on: string;
+      invoice_id: string | null;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    jobId: row.job_id,
+    description: row.description,
+    amountCents: row.amount_cents,
+    claimedOn: row.claimed_on,
+    invoiceId: row.invoice_id ?? undefined,
+  }));
+}
+
+/** The shape lib/invoicing/claims.ts wants. */
+export function asClaimLikes(claims: JobClaim[]): ClaimLike[] {
+  return claims.map((claim) => ({
+    claimId: claim.id,
+    jobId: claim.jobId,
+    amountCents: claim.amountCents,
+    invoiceId: claim.invoiceId,
+  }));
+}
+
+/** Stages billed but not yet invoiced. These go on the next invoice. */
+export function billableClaims(
+  claims: JobClaim[],
+  jobs: OneOffJob[],
+  propertyLabel: (propertyId?: string) => string | undefined,
+): InvoiceableClaim[] {
+  return claims
+    .filter((claim) => !claim.invoiceId)
+    .map((claim) => {
+      const job = jobs.find((candidate) => candidate.id === claim.jobId);
+      return {
+        claimId: claim.id,
+        jobTitle: job?.title ?? 'Job',
+        propertyLabel: propertyLabel(job?.propertyId),
+        description: claim.description,
+        amountCents: claim.amountCents,
+        claimedOn: claim.claimedOn,
+      };
+    });
 }

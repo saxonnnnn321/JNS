@@ -40,6 +40,22 @@ export type InvoiceableJob = {
   completedOn: string;
   priceCents: number;
   materialsCents: number;
+  /**
+   * True when stages of this job have already been billed, so this line is
+   * only what is left rather than the whole price.
+   */
+  isBalance?: boolean;
+};
+
+/** A stage of a big job, billed before the job is finished. */
+export type InvoiceableClaim = {
+  claimId: string;
+  jobTitle: string;
+  propertyLabel?: string;
+  description: string;
+  amountCents: number;
+  /** YYYY-MM-DD */
+  claimedOn: string;
 };
 
 /** Anything else: materials, a callout, or a discount (negative). */
@@ -67,6 +83,7 @@ export type BuiltInvoice = {
   /** What this invoice covers, to be stamped with its id afterwards. */
   visitIds: string[];
   jobIds: string[];
+  claimIds: string[];
   extraIds: string[];
   periodFrom: string;
   periodTo: string;
@@ -102,6 +119,7 @@ function short(date: string): string {
 export function buildInvoice({
   visits,
   jobs = [],
+  claims = [],
   extras = [],
   gstRegistered,
   gstRate,
@@ -109,12 +127,19 @@ export function buildInvoice({
   visits: InvoiceableVisit[];
   /** Construction and other one-off work, finished and unbilled. */
   jobs?: InvoiceableJob[];
+  /** Stages of a job in progress. */
+  claims?: InvoiceableClaim[];
   /** Materials, callouts, discounts. */
   extras?: InvoiceableExtra[];
   gstRegistered: boolean;
   gstRate: number;
 }): BuiltInvoice {
-  if (visits.length === 0 && jobs.length === 0 && extras.length === 0) {
+  if (
+    visits.length === 0 &&
+    jobs.length === 0 &&
+    claims.length === 0 &&
+    extras.length === 0
+  ) {
     return {
       lines: [],
       subtotalCents: 0,
@@ -122,6 +147,7 @@ export function buildInvoice({
       totalCents: 0,
       visitIds: [],
       jobIds: [],
+      claimIds: [],
       extraIds: [],
       periodFrom: '',
       periodTo: '',
@@ -177,7 +203,9 @@ export function buildInvoice({
     .flatMap((job) => {
       const where = job.propertyLabel ? `${job.propertyLabel} — ` : '';
       const line = {
-        description: `${where}${job.title} (completed ${short(job.completedOn)})`,
+        description: `${where}${job.title}${
+          job.isBalance ? ' — balance' : ''
+        } (completed ${short(job.completedOn)})`,
         quantity: 1,
         unit: 'job',
         amountCents: job.priceCents,
@@ -196,6 +224,22 @@ export function buildInvoice({
         : [line];
     });
 
+  // Progress claims read as their own stage, so the customer can follow the
+  // job across several invoices.
+  const claimLines = [...claims]
+    .sort((a, b) => a.claimedOn.localeCompare(b.claimedOn))
+    .map((claim) => {
+      const where = claim.propertyLabel ? `${claim.propertyLabel} — ` : '';
+      return {
+        description: `${where}${claim.jobTitle}: ${claim.description} (${short(
+          claim.claimedOn,
+        )})`,
+        quantity: 1,
+        unit: 'progress claim',
+        amountCents: claim.amountCents,
+      };
+    });
+
   const extraLines = [...extras]
     .sort((a, b) => a.incurredOn.localeCompare(b.incurredOn))
     .map((extra) => ({
@@ -205,9 +249,12 @@ export function buildInvoice({
       amountCents: extra.amountCents,
     }));
 
-  const lines: InvoiceLine[] = [...visitLines, ...jobLines, ...extraLines].map(
-    (line, index) => ({ ...line, sort: index }),
-  );
+  const lines: InvoiceLine[] = [
+    ...visitLines,
+    ...claimLines,
+    ...jobLines,
+    ...extraLines,
+  ].map((line, index) => ({ ...line, sort: index }));
 
   const subtotalCents = lines.reduce((total, line) => total + line.amountCents, 0);
   // A discount big enough to go negative should not produce negative tax.
@@ -217,6 +264,7 @@ export function buildInvoice({
   const allDates = [
     ...visits.map((visit) => visit.date),
     ...jobs.map((job) => job.completedOn),
+    ...claims.map((claim) => claim.claimedOn),
     ...extras.map((extra) => extra.incurredOn),
   ].sort();
 
@@ -227,6 +275,7 @@ export function buildInvoice({
     totalCents: subtotalCents + gstCents,
     visitIds: visits.map((visit) => visit.visitId),
     jobIds: jobs.map((job) => job.jobId),
+    claimIds: claims.map((claim) => claim.claimId),
     extraIds: extras.map((extra) => extra.extraId),
     periodFrom: allDates[0],
     periodTo: allDates[allDates.length - 1],

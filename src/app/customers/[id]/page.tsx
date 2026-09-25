@@ -12,16 +12,26 @@ import {
 import { loadRound } from '@/lib/crm/queries';
 import { deleteCustomer, removeRecord } from '../actions';
 import { invoiceCustomer } from '@/app/invoices/actions';
-import { finishJob, removeExtra, removeJob } from '@/app/jobs/actions';
+import {
+  finishJob,
+  removeClaim,
+  removeExtra,
+  removeJob,
+} from '@/app/jobs/actions';
 import { invoiceableVisitsFor } from '@/lib/invoicing/collect';
 import {
+  asClaimLikes,
+  billableClaims,
   billableExtras,
   billableJobs,
+  claimsForCustomer,
   extrasForCustomer,
   jobsForCustomer,
 } from '@/lib/invoicing/jobs';
+import { jobLedger } from '@/lib/invoicing/claims';
 import { loadReceipts } from '@/lib/receipts/queries';
 import {
+  ClaimForm,
   EditCustomer,
   ExtraForm,
   JobForm,
@@ -49,12 +59,14 @@ export default async function CustomerPage({
   const { id } = await params;
   const { invoice: invoiceFlag } = await searchParams;
 
-  const [round, jobs, extras, receiptList] = await Promise.all([
+  const [round, jobs, extras, claims, receiptList] = await Promise.all([
     loadRound(),
     jobsForCustomer(id),
     extrasForCustomer(id),
+    claimsForCustomer(id),
     loadReceipts(id),
   ]);
+  const claimLikes = asClaimLikes(claims);
   const receipts = receiptList.receipts;
 
   const customer = round.customerById(id);
@@ -77,14 +89,19 @@ export default async function CustomerPage({
 
   // Everything that would go on an invoice if you pressed the button now.
   const unbilledVisits = invoiceableVisitsFor(round, id);
-  const unbilledJobs = billableJobs(jobs, labelFor);
+  const unbilledJobs = billableJobs(jobs, labelFor, claimLikes);
+  const unbilledClaims = billableClaims(claims, jobs, labelFor);
   const unbilledExtras = billableExtras(extras);
   const unbilledCents =
     unbilledVisits.reduce((t, v) => t + v.priceCents, 0) +
     unbilledJobs.reduce((t, j) => t + j.priceCents + j.materialsCents, 0) +
+    unbilledClaims.reduce((t, c) => t + c.amountCents, 0) +
     unbilledExtras.reduce((t, e) => t + e.amountCents, 0);
   const unbilledCount =
-    unbilledVisits.length + unbilledJobs.length + unbilledExtras.length;
+    unbilledVisits.length +
+    unbilledJobs.length +
+    unbilledClaims.length +
+    unbilledExtras.length;
 
   const openJobs = jobs.filter(
     (job) => job.status !== 'cancelled' && job.status !== 'done',
@@ -146,6 +163,7 @@ export default async function CustomerPage({
               {[
                 unbilledVisits.length && `${unbilledVisits.length} visit${unbilledVisits.length === 1 ? '' : 's'}`,
                 unbilledJobs.length && `${unbilledJobs.length} job${unbilledJobs.length === 1 ? '' : 's'}`,
+                unbilledClaims.length && `${unbilledClaims.length} progress claim${unbilledClaims.length === 1 ? '' : 's'}`,
                 unbilledExtras.length && `${unbilledExtras.length} extra line${unbilledExtras.length === 1 ? '' : 's'}`,
               ]
                 .filter(Boolean)
@@ -384,6 +402,13 @@ export default async function CustomerPage({
                               </button>
                             </form>
                           )}
+                          <JobClaims
+                            job={job}
+                            claims={claims.filter((c) => c.jobId === job.id)}
+                            customerId={customer.id}
+                            today={date}
+                          />
+
                           <JobForm
                             customerId={customer.id}
                             properties={propertyOptions}
@@ -588,6 +613,105 @@ export default async function CustomerPage({
         </div>
       </details>
     </main>
+  );
+}
+
+/**
+ * Billing a big job in stages.
+ *
+ * Shows the whole picture at once — what it is worth, what has been claimed,
+ * what is left — because the question you actually have standing on site is
+ * "how much of this have I already billed her for?"
+ */
+function JobClaims({
+  job,
+  claims,
+  customerId,
+  today,
+}: {
+  job: { id: string; priceCents: number; materialsCents: number };
+  claims: {
+    id: string;
+    description: string;
+    amountCents: number;
+    claimedOn: string;
+    invoiceId?: string;
+  }[];
+  customerId: string;
+  today: string;
+}) {
+  const ledger = jobLedger(job, claims.map((claim) => ({
+    claimId: claim.id,
+    jobId: job.id,
+    amountCents: claim.amountCents,
+    invoiceId: claim.invoiceId,
+  })));
+
+  return (
+    <div className="mb-4 rounded-lg bg-leaf-soft/50 p-3">
+      <p className={legend}>Billing in stages</p>
+      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+        <span>
+          Job worth <b>{formatMoney(ledger.totalCents)}</b>
+        </span>
+        <span>
+          Claimed <b>{formatMoney(ledger.claimedCents)}</b>
+        </span>
+        <span className={ledger.remainingCents === 0 ? 'text-bark/45' : 'text-leaf'}>
+          Still to bill <b>{formatMoney(ledger.remainingCents)}</b>
+        </span>
+      </div>
+
+      {ledger.overClaimed && (
+        <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
+          The stages add up to more than the job is worth. Check them before
+          you invoice.
+        </p>
+      )}
+
+      {claims.length > 0 && (
+        <ul className="mt-2 space-y-1 text-xs">
+          {claims.map((claim) => (
+            <li key={claim.id} className="flex items-baseline gap-2">
+              <span className="w-24 shrink-0 text-bark/50">
+                {formatBusinessDate(claim.claimedOn)}
+              </span>
+              <span className="min-w-0 flex-1">{claim.description}</span>
+              <span className="font-medium">{formatMoney(claim.amountCents)}</span>
+              {claim.invoiceId ? (
+                <span className="text-bark/40">invoiced</span>
+              ) : (
+                <>
+                  <span className="text-leaf">on next invoice</span>
+                  <form action={removeClaim}>
+                    <input type="hidden" name="id" value={claim.id} />
+                    <input type="hidden" name="customerId" value={customerId} />
+                    <button
+                      type="submit"
+                      aria-label="Remove claim"
+                      className="px-1 text-bark/30 hover:text-red-600"
+                    >
+                      ×
+                    </button>
+                  </form>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {ledger.remainingCents > 0 && (
+        <div className="mt-3 border-t border-black/5 pt-3">
+          <ClaimForm
+            jobId={job.id}
+            customerId={customerId}
+            today={today}
+            remainingLabel={formatMoney(ledger.remainingCents)}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

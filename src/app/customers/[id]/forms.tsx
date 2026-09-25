@@ -9,7 +9,13 @@ import {
   updateProperty,
   type FormResult,
 } from '../actions';
-import { addExtra, addJob, updateJob, type JobResult } from '@/app/jobs/actions';
+import {
+  addClaim,
+  addExtra,
+  addJob,
+  updateJob,
+  type JobResult,
+} from '@/app/jobs/actions';
 
 const input =
   'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
@@ -508,6 +514,67 @@ export function ExtraForm({
       </button>
       <p className="mt-2 text-xs text-bark/45">
         Goes on their next invoice. A minus sign makes it a discount.
+      </p>
+      <Message result={result} />
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Progress claim — billing a stage of a big job
+// ---------------------------------------------------------------------------
+
+export function ClaimForm({
+  jobId,
+  customerId,
+  today,
+  remainingLabel,
+}: {
+  jobId: string;
+  customerId: string;
+  today: string;
+  remainingLabel: string;
+}) {
+  const [result, submit, pending] = useActionState<JobResult, FormData>(
+    addClaim,
+    null,
+  );
+
+  return (
+    <form action={submit}>
+      <input type="hidden" name="jobId" value={jobId} />
+      <input type="hidden" name="customerId" value={customerId} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="block text-sm sm:col-span-2">
+          What stage
+          <input
+            name="description"
+            className={input}
+            placeholder="Slab down and drainage in"
+            required
+          />
+        </label>
+        <label className="block text-sm">
+          Claim now
+          <input
+            name="amount"
+            className={input}
+            inputMode="decimal"
+            placeholder="$5,000"
+            required
+          />
+        </label>
+      </div>
+      <label className="mt-3 block text-sm sm:w-48">
+        Date
+        <input type="date" name="claimedOn" className={input} defaultValue={today} />
+      </label>
+      <button type="submit" className={`${primary} mt-3`} disabled={pending}>
+        {pending ? 'Saving…' : 'Add progress claim'}
+      </button>
+      <p className="mt-2 text-xs text-bark/45">
+        {remainingLabel} left unclaimed. It goes on their next invoice, and the
+        final bill is whatever is still owing.
       </p>
       <Message result={result} />
     </form>

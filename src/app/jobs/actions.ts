@@ -227,3 +227,96 @@ export async function removeExtra(data: FormData): Promise<void> {
   await supabase.from('invoice_extras').delete().eq('id', id).is('invoice_id', null);
   if (customerId) revalidatePath(`/customers/${customerId}`);
 }
+
+// ---------------------------------------------------------------------------
+// Progress claims — billing a big job in stages
+// ---------------------------------------------------------------------------
+
+/**
+ * Claim an amount against a job before it is finished.
+ *
+ * Refuses to claim more than the job is worth. Over-claiming is a typo, and
+ * the alternative to catching it here is an invoice that hands money back.
+ */
+export async function addClaim(
+  _previous: JobResult,
+  data: FormData,
+): Promise<JobResult> {
+  const parsed = z
+    .object({
+      jobId: z.string().uuid(),
+      customerId: z.string().uuid(),
+      description: z.string().trim().min(1, 'What is the stage?'),
+      amount: dollars.pipe(z.number().min(0.01, 'How much?')),
+      claimedOn: day,
+    })
+    .safeParse({
+      jobId: field(data, 'jobId'),
+      customerId: field(data, 'customerId'),
+      description: field(data, 'description'),
+      amount: field(data, 'amount'),
+      claimedOn: field(data, 'claimedOn') || businessDate(),
+    });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Check the form' };
+  }
+  const input = parsed.data;
+  const amountCents = Math.round(input.amount * 100);
+
+  const supabase = await createClient();
+
+  const { data: job, error: jobError } = await supabase
+    .from('one_off_jobs')
+    .select('price_cents, materials_cents, invoice_id')
+    .eq('id', input.jobId)
+    .maybeSingle();
+  if (jobError || !job) return fail(jobError?.message, 'Could not find that job');
+  if (job.invoice_id) {
+    return { error: 'That job has already been invoiced in full.' };
+  }
+
+  const { data: existing } = await supabase
+    .from('job_claims')
+    .select('amount_cents')
+    .eq('job_id', input.jobId);
+
+  const alreadyClaimed = ((existing ?? []) as { amount_cents: number }[]).reduce(
+    (total, row) => total + row.amount_cents,
+    0,
+  );
+  const total = job.price_cents + job.materials_cents;
+  const remaining = total - alreadyClaimed;
+
+  if (amountCents > remaining) {
+    return {
+      error: `Only ${(remaining / 100).toLocaleString('en-AU', {
+        style: 'currency',
+        currency: 'AUD',
+      })} is left unclaimed on this job.`,
+    };
+  }
+
+  const { error } = await supabase.from('job_claims').insert({
+    job_id: input.jobId,
+    description: input.description,
+    amount_cents: amountCents,
+    claimed_on: input.claimedOn,
+  });
+  if (error) return fail(error.message, 'Could not add the claim');
+
+  revalidatePath('/jobs');
+  revalidatePath(`/customers/${input.customerId}`);
+  return null;
+}
+
+export async function removeClaim(data: FormData): Promise<void> {
+  const id = field(data, 'id');
+  const customerId = field(data, 'customerId');
+  if (!id) return;
+  const supabase = await createClient();
+  // An invoiced stage is history and stays put.
+  await supabase.from('job_claims').delete().eq('id', id).is('invoice_id', null);
+  revalidatePath('/jobs');
+  if (customerId) revalidatePath(`/customers/${customerId}`);
+}
