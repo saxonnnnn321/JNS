@@ -51,6 +51,9 @@ export type OneOffJob = {
   pricing: JobPricing;
   labourRateCents: number;
   markupBasisPoints: number;
+  quoteReference?: string;
+  /** When the quote was last emailed, if ever. */
+  quoteSentAt?: string;
 };
 
 /** What a job is worth right now, given what has been logged against it. */
@@ -85,10 +88,12 @@ type JobRow = {
   pricing: JobPricing | null;
   labour_rate_cents: number | null;
   markup_basis_points: number | null;
+  quote_reference: string | null;
+  quote_sent_at: string | null;
 };
 
 const JOB_COLUMNS =
-  'id, customer_id, property_id, title, description, kind, price_cents, materials_cents, estimated_minutes, status, scheduled_for, completed_on, invoice_id, notes, pricing, labour_rate_cents, markup_basis_points';
+  'id, customer_id, property_id, title, description, kind, price_cents, materials_cents, estimated_minutes, status, scheduled_for, completed_on, invoice_id, notes, pricing, labour_rate_cents, markup_basis_points, quote_reference, quote_sent_at';
 
 function toJob(row: JobRow): OneOffJob {
   return {
@@ -110,6 +115,8 @@ function toJob(row: JobRow): OneOffJob {
     pricing: row.pricing ?? 'fixed',
     labourRateCents: row.labour_rate_cents ?? 15_000,
     markupBasisPoints: row.markup_basis_points ?? 0,
+    quoteReference: row.quote_reference ?? undefined,
+    quoteSentAt: row.quote_sent_at ?? undefined,
   };
 }
 

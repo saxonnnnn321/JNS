@@ -72,3 +72,58 @@ describe('renderInvoicePdf', () => {
     expect(pdf.length).toBeGreaterThan(1000);
   });
 });
+
+describe('renderJobQuotePdf', () => {
+  const base = {
+    reference: 'Q-0001',
+    issuedDate: '2026-09-25',
+    validUntil: '2026-10-25',
+    customer: { name: 'Marg Whitton' },
+    propertyLabel: '12 Short Street, Emu Plains',
+    title: 'Retaining wall, back yard',
+    scope: 'Line one\nLine two',
+    labourRateCents: 15_000,
+    markupBasisPoints: 1500,
+  };
+
+  it('renders a fixed-price construction quote', async () => {
+    const { renderJobQuotePdf } = await import('./render-job-quote');
+    const pdf = await renderJobQuotePdf({
+      ...base,
+      isCostPlus: false,
+      priceCents: 640_000,
+      materialsCents: 312_000,
+      gstCents: 0,
+      totalCents: 952_000,
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.length).toBeGreaterThan(1000);
+  });
+
+  it('renders a cost-plus quote, which has no total to show', async () => {
+    const { renderJobQuotePdf } = await import('./render-job-quote');
+    const pdf = await renderJobQuotePdf({
+      ...base,
+      isCostPlus: true,
+      priceCents: 0,
+      materialsCents: 0,
+      gstCents: 0,
+      totalCents: 0,
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('copes with no scope written at all', async () => {
+    const { renderJobQuotePdf } = await import('./render-job-quote');
+    const pdf = await renderJobQuotePdf({
+      ...base,
+      scope: undefined,
+      isCostPlus: false,
+      priceCents: 100_000,
+      materialsCents: 0,
+      gstCents: 0,
+      totalCents: 100_000,
+    });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+});

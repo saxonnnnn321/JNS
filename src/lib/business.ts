@@ -59,6 +59,23 @@ export const BUSINESS = {
     termsDays: 7,
   },
 
+  /**
+   * Terms for a construction or one-off job. Separate from quoteTerms, which
+   * talk about green waste and side gates and read like nonsense under a
+   * retaining wall.
+   *
+   * The approvals line matters in NSW: a retaining wall over a metre, or one
+   * near a boundary, generally needs council consent, and a quote that stays
+   * silent on that invites an argument later.
+   */
+  jobTerms: [
+    'This price is based on the site as inspected. If something unforeseen turns up — rock, buried services, unstable ground — we will stop and talk to you before going any further.',
+    'Council approvals, engineering certification and surveying are not included unless the quote says so.',
+    'Materials are as described. If something is unavailable we may substitute an equivalent, and will tell you first.',
+    'On longer jobs we may invoice in stages as the work progresses. Any staging is agreed before we start.',
+    'This quote is valid for 30 days from the date of issue.',
+  ],
+
   quoteTerms: [
     'Prices are an estimate based on the information and photos supplied. If the site differs materially from what was quoted we will contact you before starting.',
     'Green waste removal is charged per cubic metre where it is not included in the package above.',

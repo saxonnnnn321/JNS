@@ -50,3 +50,45 @@ export function invoiceBody(input: InvoiceEmailInput): string {
     BUSINESS.phone,
   ].join('\n');
 }
+
+// ---------------------------------------------------------------------------
+// Quotes
+// ---------------------------------------------------------------------------
+
+export type QuoteEmailInput = {
+  reference: string;
+  customerName: string;
+  title: string;
+  totalCents: number;
+  validUntil: string;
+  isCostPlus: boolean;
+  labourRateCents: number;
+};
+
+export function quoteSubject(input: QuoteEmailInput): string {
+  return `${BUSINESS.tradingName} — quote for ${input.title}`;
+}
+
+export function quoteBody(input: QuoteEmailInput): string {
+  // A cost-plus quote has no total to name, and inventing one would be a
+  // number nobody agreed to.
+  const price = input.isCostPlus
+    ? `It is charged at ${formatMoney(input.labourRateCents)} an hour plus materials, so the final figure depends on how it runs. The attached quote sets out the work.`
+    : `The total is ${formatMoney(input.totalCents)}, and the quote is attached.`;
+
+  return [
+    `Hi ${input.customerName},`,
+    '',
+    `Thanks for having me out. Here is the quote for ${input.title}.`,
+    '',
+    price,
+    '',
+    `It holds until ${formatBusinessDate(input.validUntil)}.`,
+    '',
+    'Any questions, or if you want something changed, just reply or give me a ring.',
+    '',
+    'Thanks,',
+    BUSINESS.tradingName,
+    BUSINESS.phone,
+  ].join('\n');
+}

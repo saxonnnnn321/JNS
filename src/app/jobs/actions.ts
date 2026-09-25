@@ -330,3 +330,68 @@ export async function removeClaim(data: FormData): Promise<void> {
   revalidatePath('/jobs');
   if (customerId) revalidatePath(`/customers/${customerId}`);
 }
+
+// ---------------------------------------------------------------------------
+// Sending the quote
+// ---------------------------------------------------------------------------
+
+export type SendQuoteResult = { error: string } | { ok: string } | null;
+
+/**
+ * Email the quote for a job, with the PDF attached, and remember that it
+ * went. Refuses rather than embarrasses you when there is no email on file.
+ */
+export async function emailJobQuote(
+  _previous: SendQuoteResult,
+  data: FormData,
+): Promise<SendQuoteResult> {
+  const id = field(data, 'id');
+  if (!id) return { error: 'No job.' };
+
+  const { loadJobQuote } = await import('@/lib/invoicing/job-quote');
+  const { renderJobQuotePdf } = await import('@/lib/pdf/render-job-quote');
+  const { quoteBody, quoteSubject } = await import('@/lib/email/compose');
+  const { sendEmail, EmailError } = await import('@/lib/email/send');
+
+  const quote = await loadJobQuote(id);
+  if (!quote) return { error: 'Could not find that job.' };
+  if (!quote.customerEmail) {
+    return {
+      error: `No email address on file for ${quote.customer.name}. Add one on their page.`,
+    };
+  }
+
+  const shape = {
+    reference: quote.reference,
+    customerName: quote.customer.name,
+    title: quote.title,
+    totalCents: quote.totalCents,
+    validUntil: quote.validUntil,
+    isCostPlus: quote.isCostPlus,
+    labourRateCents: quote.labourRateCents,
+  };
+
+  try {
+    const pdf = await renderJobQuotePdf(quote);
+    await sendEmail({
+      to: quote.customerEmail,
+      subject: quoteSubject(shape),
+      text: quoteBody(shape),
+      attachments: [{ filename: `${quote.reference}.pdf`, content: pdf }],
+    });
+  } catch (cause) {
+    if (cause instanceof EmailError) return { error: cause.message };
+    console.error('could not send the quote', cause);
+    return { error: 'Could not send it. Check the logs.' };
+  }
+
+  const supabase = await createClient();
+  await supabase
+    .from('one_off_jobs')
+    .update({ quote_sent_at: new Date().toISOString() })
+    .eq('id', id);
+
+  revalidatePath('/jobs');
+  revalidatePath(`/customers/${quote.customerId}`);
+  return { ok: `Quote sent to ${quote.customerEmail}` };
+}

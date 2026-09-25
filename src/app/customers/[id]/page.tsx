@@ -34,6 +34,8 @@ import {
 } from '@/lib/invoicing/jobs';
 import { jobLedger } from '@/lib/invoicing/claims';
 import { loadReceipts } from '@/lib/receipts/queries';
+import { emailConfigured } from '@/lib/email/env';
+import { QuoteButtons } from './quote-buttons';
 import {
   ClaimForm,
   EditCustomer,
@@ -417,6 +419,13 @@ export default async function CustomerPage({
                         </p>
                       ) : (
                         <>
+                          <QuoteButtons
+                            jobId={job.id}
+                            customerEmail={customer.email}
+                            sentAt={job.quoteSentAt}
+                            emailReady={emailConfigured}
+                          />
+
                           {job.status !== 'done' && (
                             <form action={finishJob} className="mb-3">
                               <input type="hidden" name="id" value={job.id} />
