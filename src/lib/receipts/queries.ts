@@ -16,7 +16,8 @@ const LINK_TTL_SECONDS = 10 * 60;
 
 export type Receipt = {
   id: string;
-  storagePath: string;
+  /** Null when there was no docket — cash for a load of soil. */
+  storagePath?: string;
   /** Signed, expires in ten minutes. Null if the link could not be made. */
   photoUrl: string | null;
   supplier?: string;
@@ -33,7 +34,7 @@ export type Receipt = {
 
 type Row = {
   id: string;
-  storage_path: string;
+  storage_path: string | null;
   supplier: string | null;
   amount_cents: number;
   purchased_on: string;
@@ -71,8 +72,11 @@ export async function loadReceipts(customerId?: string): Promise<ReceiptList> {
 
   const rows = (data ?? []) as unknown as Row[];
 
-  // One batched call rather than one per receipt.
-  const paths = rows.map((row) => row.storage_path);
+  // One batched call rather than one per receipt, and only for the ones
+  // that actually have a photo.
+  const paths = rows
+    .map((row) => row.storage_path)
+    .filter((path): path is string => Boolean(path));
   const links = new Map<string, string>();
   if (paths.length > 0) {
     const { data: signed } = await supabase.storage
@@ -87,8 +91,8 @@ export async function loadReceipts(customerId?: string): Promise<ReceiptList> {
     unavailable: false,
     receipts: rows.map((row) => ({
       id: row.id,
-      storagePath: row.storage_path,
-      photoUrl: links.get(row.storage_path) ?? null,
+      storagePath: row.storage_path ?? undefined,
+      photoUrl: row.storage_path ? (links.get(row.storage_path) ?? null) : null,
       supplier: row.supplier ?? undefined,
       amountCents: row.amount_cents,
       purchasedOn: row.purchased_on,

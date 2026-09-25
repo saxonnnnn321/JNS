@@ -6,6 +6,7 @@ import type {
   InvoiceableJob,
 } from './build';
 import { jobLedger, type ClaimLike } from './claims';
+import { jobValue, type JobActuals, type JobValue } from './value';
 
 /**
  * One-off jobs and extra invoice lines.
@@ -25,6 +26,13 @@ export type JobStatus =
   | 'done'
   | 'cancelled';
 
+export type JobPricing = 'fixed' | 'costPlus';
+
+/** Hours and receipts actually recorded against each job, keyed by job id. */
+export type JobActualsMap = Map<string, JobActuals>;
+
+export const NO_ACTUALS: JobActuals = { minutesWorked: 0, receiptsCents: 0 };
+
 export type OneOffJob = {
   id: string;
   customerId: string;
@@ -40,7 +48,15 @@ export type OneOffJob = {
   completedOn?: string;
   invoiceId?: string;
   notes?: string;
+  pricing: JobPricing;
+  labourRateCents: number;
+  markupBasisPoints: number;
 };
+
+/** What a job is worth right now, given what has been logged against it. */
+export function valueOf(job: OneOffJob, actuals: JobActualsMap): JobValue {
+  return jobValue(job, actuals.get(job.id) ?? NO_ACTUALS);
+}
 
 export type Extra = {
   id: string;
@@ -66,10 +82,13 @@ type JobRow = {
   completed_on: string | null;
   invoice_id: string | null;
   notes: string | null;
+  pricing: JobPricing | null;
+  labour_rate_cents: number | null;
+  markup_basis_points: number | null;
 };
 
 const JOB_COLUMNS =
-  'id, customer_id, property_id, title, description, kind, price_cents, materials_cents, estimated_minutes, status, scheduled_for, completed_on, invoice_id, notes';
+  'id, customer_id, property_id, title, description, kind, price_cents, materials_cents, estimated_minutes, status, scheduled_for, completed_on, invoice_id, notes, pricing, labour_rate_cents, markup_basis_points';
 
 function toJob(row: JobRow): OneOffJob {
   return {
@@ -87,7 +106,58 @@ function toJob(row: JobRow): OneOffJob {
     completedOn: row.completed_on ?? undefined,
     invoiceId: row.invoice_id ?? undefined,
     notes: row.notes ?? undefined,
+    // Defaults cover a database where migration 0009 has not been run yet.
+    pricing: row.pricing ?? 'fixed',
+    labourRateCents: row.labour_rate_cents ?? 15_000,
+    markupBasisPoints: row.markup_basis_points ?? 0,
   };
+}
+
+/**
+ * The hours and materials recorded against a customer's jobs.
+ *
+ * Only cost-plus jobs bill from these, but they are worth showing on a fixed
+ * job too — the gap between what you quoted and what it actually cost is the
+ * number that tells you whether you are quoting well.
+ */
+export async function jobActualsFor(customerId: string): Promise<JobActualsMap> {
+  const actuals: JobActualsMap = new Map();
+  if (!supabaseConfigured) return actuals;
+
+  const supabase = await createClient();
+  const { data: jobRows } = await supabase
+    .from('one_off_jobs')
+    .select('id')
+    .eq('customer_id', customerId);
+
+  const jobIds = ((jobRows ?? []) as { id: string }[]).map((row) => row.id);
+  if (jobIds.length === 0) return actuals;
+
+  const [hours, receipts] = await Promise.all([
+    supabase.from('timesheet_entries').select('job_id, minutes').in('job_id', jobIds),
+    supabase.from('receipts').select('job_id, amount_cents').in('job_id', jobIds),
+  ]);
+
+  const bump = (jobId: string | null, patch: Partial<JobActuals>) => {
+    if (!jobId) return;
+    const current = actuals.get(jobId) ?? { minutesWorked: 0, receiptsCents: 0 };
+    actuals.set(jobId, {
+      minutesWorked: current.minutesWorked + (patch.minutesWorked ?? 0),
+      receiptsCents: current.receiptsCents + (patch.receiptsCents ?? 0),
+    });
+  };
+
+  for (const row of (hours.data ?? []) as { job_id: string | null; minutes: number }[]) {
+    bump(row.job_id, { minutesWorked: row.minutes });
+  }
+  for (const row of (receipts.data ?? []) as {
+    job_id: string | null;
+    amount_cents: number;
+  }[]) {
+    bump(row.job_id, { receiptsCents: row.amount_cents });
+  }
+
+  return actuals;
 }
 
 /** Every job for a customer, newest first. Empty if 0006 has not been run. */
@@ -154,22 +224,25 @@ export function billableJobs(
   jobs: OneOffJob[],
   propertyLabel: (propertyId?: string) => string | undefined,
   claims: ClaimLike[] = [],
+  actuals: JobActualsMap = new Map(),
 ): InvoiceableJob[] {
   return jobs
     .filter((job) => job.status === 'done' && !job.invoiceId && job.completedOn)
     .map((job) => {
-      const ledger = jobLedger(job, claims);
+      const value = valueOf(job, actuals);
+      const ledger = jobLedger({ id: job.id, totalCents: value.totalCents }, claims);
 
       // No stages billed: the job bills as itself, materials on their own
-      // line so the customer can see the split.
+      // line so the customer can see the split. For cost-plus the "price" is
+      // the labour and the margin rides with the materials.
       if (ledger.claimedCents === 0) {
         return {
           jobId: job.id,
           title: job.title,
           propertyLabel: propertyLabel(job.propertyId),
           completedOn: job.completedOn as string,
-          priceCents: job.priceCents,
-          materialsCents: job.materialsCents,
+          priceCents: value.labourCents,
+          materialsCents: value.materialsCents + value.markupCents,
         };
       }
 

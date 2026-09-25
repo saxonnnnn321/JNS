@@ -26,6 +26,7 @@ export type TimesheetEntry = {
   minutes: number;
   description?: string;
   customerId?: string;
+  jobId?: string;
 };
 
 export type MoneyEntry = {
@@ -117,7 +118,7 @@ export async function loadPeriodBooks(
       .maybeSingle(),
     supabase
       .from('timesheet_entries')
-      .select('id, staff_id, work_date, minutes, description, customer_id')
+      .select('id, staff_id, work_date, minutes, description, customer_id, job_id')
       .gte('work_date', from)
       .lte('work_date', to)
       .order('work_date', { ascending: false }),
@@ -168,6 +169,7 @@ export async function loadPeriodBooks(
       minutes: number;
       description: string | null;
       customer_id: string | null;
+      job_id: string | null;
     }[]
   ).map((row) => ({
     id: row.id,
@@ -177,6 +179,7 @@ export async function loadPeriodBooks(
     minutes: row.minutes,
     description: row.description ?? undefined,
     customerId: row.customer_id ?? undefined,
+    jobId: row.job_id ?? undefined,
   }));
 
   const drawings: MoneyEntry[] = (

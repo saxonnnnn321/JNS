@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { jobLedger, type ClaimLike, type JobLike } from './claims';
 
-const job: JobLike = { id: 'j1', priceCents: 2_000_000, materialsCents: 0 };
+const job: JobLike = { id: 'j1', totalCents: 2_000_000 };
 
 const claim = (over: Partial<ClaimLike> = {}): ClaimLike => ({
   claimId: 'c1',
@@ -49,11 +49,10 @@ describe('jobLedger', () => {
     expect(ledger.remainingCents).toBe(1_500_000);
   });
 
-  it('includes materials in the total', () => {
-    const ledger = jobLedger(
-      { id: 'j1', priceCents: 2_000_000, materialsCents: 138_000 },
-      [claim()],
-    );
+  it('works off whatever the job is worth, however that was arrived at', () => {
+    // A cost-plus job has no quoted price — its total is computed from hours
+    // and materials by lib/invoicing/value.ts and handed in here.
+    const ledger = jobLedger({ id: 'j1', totalCents: 2_138_000 }, [claim()]);
     expect(ledger.totalCents).toBe(2_138_000);
     expect(ledger.remainingCents).toBe(1_638_000);
   });

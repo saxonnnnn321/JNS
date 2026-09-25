@@ -44,12 +44,15 @@ async function compress(file: File): Promise<Blob> {
 }
 
 export type Option = { id: string; label: string };
+export type JobOption = Option & { customerId: string };
 
 export function ReceiptCapture({
   customers,
+  jobs,
   today,
 }: {
   customers: Option[];
+  jobs: JobOption[];
   today: string;
 }) {
   const [result, submit, saving] = useActionState<ReceiptResult, FormData>(
@@ -63,7 +66,12 @@ export function ReceiptCapture({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [rechargeable, setRechargeable] = useState(true);
   const [customerId, setCustomerId] = useState('');
+  // No photo, just the amount. Common enough to be a first-class option.
+  const [noPhoto, setNoPhoto] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const jobsForCustomer = jobs.filter((job) => job.customerId === customerId);
+  const ready = Boolean(storagePath) || noPhoto;
 
   async function take(file: File | undefined) {
     if (!file) return;
@@ -100,7 +108,18 @@ export function ReceiptCapture({
     <form action={submit}>
       <input type="hidden" name="storagePath" value={storagePath} />
 
-      {!storagePath ? (
+      {noPhoto ? (
+        <div className="rounded-xl border border-dashed border-black/15 p-4 text-center">
+          <p className="text-sm font-medium">No photo — amount only</p>
+          <button
+            type="button"
+            onClick={() => setNoPhoto(false)}
+            className="mt-1 text-xs text-leaf hover:underline"
+          >
+            Actually, I have the receipt
+          </button>
+        </div>
+      ) : !storagePath ? (
         <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-leaf/40 bg-leaf-soft/40 p-6 text-center hover:bg-leaf-soft">
           <span className="text-base font-semibold text-leaf">
             {uploading ? 'Uploading…' : 'Photograph the receipt'}
@@ -142,9 +161,19 @@ export function ReceiptCapture({
         </div>
       )}
 
+      {!storagePath && !noPhoto && (
+        <button
+          type="button"
+          onClick={() => setNoPhoto(true)}
+          className="mt-2 text-xs text-bark/50 hover:text-bark"
+        >
+          No receipt? Just put the amount in →
+        </button>
+      )}
+
       {uploadError && <p className="mt-2 text-sm text-red-600">{uploadError}</p>}
 
-      {storagePath && (
+      {ready && (
         <>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <label className="block text-sm">
@@ -191,6 +220,23 @@ export function ReceiptCapture({
               ))}
             </select>
           </label>
+
+          {customerId && jobsForCustomer.length > 0 && (
+            <label className="mt-3 block text-sm">
+              Against which job <span className="text-bark/40">(optional)</span>
+              <select name="jobId" className={input} defaultValue="">
+                <option value="">Not a particular job</option>
+                {jobsForCustomer.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.label}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-bark/45">
+                On a cost-plus job this adds to what it is worth.
+              </span>
+            </label>
+          )}
 
           {customerId && (
             <label className="mt-3 flex items-start gap-2 text-sm">

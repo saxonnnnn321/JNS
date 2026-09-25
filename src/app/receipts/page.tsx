@@ -5,6 +5,7 @@ import { addDays, formatBusinessDate } from '@/lib/dates';
 import { today } from '@/lib/crm/schedule';
 import { loadRound } from '@/lib/crm/queries';
 import { loadReceipts, spendBetween } from '@/lib/receipts/queries';
+import { allJobs } from '@/lib/invoicing/jobs';
 import { ReceiptCapture } from './capture';
 import { deleteReceipt } from './actions';
 
@@ -12,9 +13,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function ReceiptsPage() {
   const date = today();
-  const [round, { receipts, unavailable }] = await Promise.all([
+  const [round, { receipts, unavailable }, jobs] = await Promise.all([
     loadRound(),
     loadReceipts(),
+    allJobs(),
   ]);
 
   const customers = round.customers.map((customer) => ({
@@ -47,7 +49,17 @@ export default async function ReceiptsPage() {
           <section className={`${card} mt-5`}>
             <p className={legend}>New receipt</p>
             <div className="mt-3">
-              <ReceiptCapture customers={customers} today={date} />
+              <ReceiptCapture
+                customers={customers}
+                jobs={jobs
+                  .filter((job) => job.status !== 'cancelled')
+                  .map((job) => ({
+                    id: job.id,
+                    label: job.title,
+                    customerId: job.customerId,
+                  }))}
+                today={date}
+              />
             </div>
           </section>
 
@@ -101,8 +113,8 @@ export default async function ReceiptsPage() {
                         />
                       </a>
                     ) : (
-                      <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded-lg bg-bark/5 text-[10px] text-bark/40">
-                        no photo
+                      <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded-lg bg-bark/5 px-1 text-center text-[10px] text-bark/40">
+                        {receipt.storagePath ? 'photo unavailable' : 'no receipt'}
                       </div>
                     )}
 

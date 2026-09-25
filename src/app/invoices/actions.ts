@@ -13,6 +13,7 @@ import {
   billableJobs,
   claimsForCustomer,
   extrasForCustomer,
+  jobActualsFor,
   jobsForCustomer,
 } from '@/lib/invoicing/jobs';
 import { BUSINESS } from '@/lib/business';
@@ -35,11 +36,12 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
   const customerId = field(data, 'customerId');
   if (!customerId) return;
 
-  const [round, jobs, extras, claims] = await Promise.all([
+  const [round, jobs, extras, claims, actuals] = await Promise.all([
     loadRound(),
     jobsForCustomer(customerId),
     extrasForCustomer(customerId),
     claimsForCustomer(customerId),
+    jobActualsFor(customerId),
   ]);
 
   const visits = invoiceableVisitsFor(round, customerId);
@@ -47,7 +49,7 @@ export async function invoiceCustomer(data: FormData): Promise<void> {
     const property = propertyId ? round.propertyById(propertyId) : undefined;
     return property ? `${property.addressLine}, ${property.suburb}` : undefined;
   };
-  const doneJobs = billableJobs(jobs, labelFor, asClaimLikes(claims));
+  const doneJobs = billableJobs(jobs, labelFor, asClaimLikes(claims), actuals);
   const openClaims = billableClaims(claims, jobs, labelFor);
   const openExtras = billableExtras(extras);
 

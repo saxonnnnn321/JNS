@@ -26,7 +26,11 @@ import {
   billableJobs,
   claimsForCustomer,
   extrasForCustomer,
+  jobActualsFor,
   jobsForCustomer,
+  valueOf,
+  type JobActualsMap,
+  type OneOffJob,
 } from '@/lib/invoicing/jobs';
 import { jobLedger } from '@/lib/invoicing/claims';
 import { loadReceipts } from '@/lib/receipts/queries';
@@ -59,12 +63,13 @@ export default async function CustomerPage({
   const { id } = await params;
   const { invoice: invoiceFlag } = await searchParams;
 
-  const [round, jobs, extras, claims, receiptList] = await Promise.all([
+  const [round, jobs, extras, claims, receiptList, actuals] = await Promise.all([
     loadRound(),
     jobsForCustomer(id),
     extrasForCustomer(id),
     claimsForCustomer(id),
     loadReceipts(id),
+    jobActualsFor(id),
   ]);
   const claimLikes = asClaimLikes(claims);
   const receipts = receiptList.receipts;
@@ -89,7 +94,7 @@ export default async function CustomerPage({
 
   // Everything that would go on an invoice if you pressed the button now.
   const unbilledVisits = invoiceableVisitsFor(round, id);
-  const unbilledJobs = billableJobs(jobs, labelFor, claimLikes);
+  const unbilledJobs = billableJobs(jobs, labelFor, claimLikes, actuals);
   const unbilledClaims = billableClaims(claims, jobs, labelFor);
   const unbilledExtras = billableExtras(extras);
   const unbilledCents =
@@ -107,7 +112,7 @@ export default async function CustomerPage({
     (job) => job.status !== 'cancelled' && job.status !== 'done',
   );
   const jobsPipeline = openJobs.reduce(
-    (t, job) => t + job.priceCents + job.materialsCents,
+    (t, job) => t + valueOf(job, actuals).totalCents,
     0,
   );
 
@@ -369,8 +374,13 @@ export default async function CustomerPage({
                         </span>
                         <span className="font-medium">{job.title}</span>
                         <span className="text-bark/60">
-                          {formatMoney(job.priceCents + job.materialsCents)}
+                          {formatMoney(valueOf(job, actuals).totalCents)}
                         </span>
+                        {job.pricing === 'costPlus' && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-900">
+                            cost plus
+                          </span>
+                        )}
                         {job.invoiceId && (
                           <span className="text-[11px] text-bark/40">invoiced</span>
                         )}
@@ -404,6 +414,7 @@ export default async function CustomerPage({
                           )}
                           <JobClaims
                             job={job}
+                            actuals={actuals}
                             claims={claims.filter((c) => c.jobId === job.id)}
                             customerId={customer.id}
                             today={date}
@@ -625,11 +636,13 @@ export default async function CustomerPage({
  */
 function JobClaims({
   job,
+  actuals,
   claims,
   customerId,
   today,
 }: {
-  job: { id: string; priceCents: number; materialsCents: number };
+  job: OneOffJob;
+  actuals: JobActualsMap;
   claims: {
     id: string;
     description: string;
@@ -640,16 +653,44 @@ function JobClaims({
   customerId: string;
   today: string;
 }) {
-  const ledger = jobLedger(job, claims.map((claim) => ({
-    claimId: claim.id,
-    jobId: job.id,
-    amountCents: claim.amountCents,
-    invoiceId: claim.invoiceId,
-  })));
+  const value = valueOf(job, actuals);
+  const ledger = jobLedger(
+    { id: job.id, totalCents: value.totalCents },
+    claims.map((claim) => ({
+      claimId: claim.id,
+      jobId: job.id,
+      amountCents: claim.amountCents,
+      invoiceId: claim.invoiceId,
+    })),
+  );
 
   return (
     <div className="mb-4 rounded-lg bg-leaf-soft/50 p-3">
-      <p className={legend}>Billing in stages</p>
+      <p className={legend}>
+        {value.isCostPlus ? 'Cost plus — what it has come to' : 'Billing in stages'}
+      </p>
+
+      {value.isCostPlus && (
+        <p className="mt-2 text-xs text-bark/70">
+          {(actuals.get(job.id)?.minutesWorked ?? 0) / 60 > 0
+            ? `${((actuals.get(job.id)?.minutesWorked ?? 0) / 60).toFixed(1)} hours`
+            : 'No hours yet'}{' '}
+          at {formatMoney(job.labourRateCents)}/hr ={' '}
+          <b>{formatMoney(value.labourCents)}</b>
+          {value.materialsCents > 0 && (
+            <>
+              {' '}· materials <b>{formatMoney(value.materialsCents)}</b>
+              {value.markupCents > 0 && (
+                <>
+                  {' '}+ {job.markupBasisPoints / 100}% ={' '}
+                  <b>{formatMoney(value.markupCents)}</b>
+                </>
+              )}
+            </>
+          )}
+        </p>
+      )}
+
       <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
         <span>
           Job worth <b>{formatMoney(ledger.totalCents)}</b>
@@ -699,6 +740,14 @@ function JobClaims({
             </li>
           ))}
         </ul>
+      )}
+
+      {value.isCostPlus && (
+        <p className="mt-2 text-xs text-bark/45">
+          This figure moves as hours are logged and receipts filed against the
+          job. Log hours to it from the Timesheet, and pick it when you
+          photograph a receipt.
+        </p>
       )}
 
       {ledger.remainingCents > 0 && (

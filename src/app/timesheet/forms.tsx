@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   logDrawing,
   logHours,
@@ -15,6 +15,73 @@ const primary =
   'rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90 disabled:cursor-not-allowed disabled:bg-bark/20';
 
 export type Person = { id: string; name: string };
+export type WorkOption = { id: string; label: string; kind: 'job' | 'customer' };
+
+/**
+ * What the hours were spent on.
+ *
+ * One dropdown rather than two, because picking a customer and then a job on
+ * a phone in a ute is two taps too many. Jobs come first: hours on a
+ * cost-plus job are what it gets billed for, so that is the choice that
+ * actually changes money.
+ */
+export function WorkPicker({
+  options,
+  defaultJobId,
+  defaultCustomerId,
+}: {
+  options: WorkOption[];
+  defaultJobId?: string;
+  defaultCustomerId?: string;
+}) {
+  const initial = defaultJobId
+    ? `job:${defaultJobId}`
+    : defaultCustomerId
+      ? `customer:${defaultCustomerId}`
+      : '';
+  const [choice, setChoice] = useState(initial);
+
+  const jobs = options.filter((option) => option.kind === 'job');
+  const customers = options.filter((option) => option.kind === 'customer');
+  const [kind, id] = choice.split(':');
+
+  return (
+    <label className="block text-sm">
+      What it was on <span className="text-bark/40">(optional)</span>
+      <select
+        className={input}
+        value={choice}
+        onChange={(e) => setChoice(e.target.value)}
+      >
+        <option value="">Nothing in particular</option>
+        {jobs.length > 0 && (
+          <optgroup label="Jobs">
+            {jobs.map((option) => (
+              <option key={option.id} value={`job:${option.id}`}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {customers.length > 0 && (
+          <optgroup label="Customers">
+            {customers.map((option) => (
+              <option key={option.id} value={`customer:${option.id}`}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </select>
+      <input type="hidden" name="jobId" value={kind === 'job' ? id : ''} />
+      <input
+        type="hidden"
+        name="customerId"
+        value={kind === 'customer' ? id : ''}
+      />
+    </label>
+  );
+}
 
 function Message({ result }: { result: FormResult }) {
   if (!result) return null;
@@ -64,7 +131,7 @@ export function HoursForm({
   today,
   defaultHours,
   defaultWhat,
-  customers,
+  work,
 }: {
   people: Person[];
   canChoose: boolean;
@@ -73,7 +140,7 @@ export function HoursForm({
   /** Prefilled when the app-wide microphone heard "log three hours". */
   defaultHours?: string;
   defaultWhat?: string;
-  customers: Person[];
+  work: WorkOption[];
 }) {
   const [result, submit, pending] = useActionState<FormResult, FormData>(
     logHours,
@@ -110,17 +177,7 @@ export function HoursForm({
         </label>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm">
-          Which job <span className="text-bark/40">(optional)</span>
-          <select name="customerId" className={input} defaultValue="">
-            <option value="">Not against a customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <WorkPicker options={work} />
         <WhoField people={people} canChoose={canChoose} self={self} name="staffId" />
       </div>
       <div className="mt-3">
@@ -222,14 +279,16 @@ export function EditEntry({
   hours,
   description,
   customerId,
-  customers,
+  jobId,
+  work,
 }: {
   id: string;
   workDate: string;
   hours: string;
   description: string;
   customerId?: string;
-  customers: Person[];
+  jobId?: string;
+  work: WorkOption[];
 }) {
   const [result, submit, pending] = useActionState<FormResult, FormData>(
     updateEntry,
@@ -260,17 +319,13 @@ export function EditEntry({
         </label>
       </div>
       <div className="mt-2 flex flex-wrap items-end gap-2">
-        <label className="block text-xs">
-          Which job
-          <select name="customerId" className={input} defaultValue={customerId ?? ''}>
-            <option value="">Not against a customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="min-w-48">
+          <WorkPicker
+            options={work}
+            defaultJobId={jobId}
+            defaultCustomerId={customerId}
+          />
+        </div>
         <button type="submit" className={primary} disabled={pending}>
           {pending ? 'Saving…' : 'Save'}
         </button>

@@ -4,6 +4,9 @@ import { formatMinutes, formatMoney } from '@/lib/format';
 import { addDays, formatBusinessDate } from '@/lib/dates';
 import { dayName, today, weekStart } from '@/lib/crm/schedule';
 import { loadPeriodBooks, type TimesheetEntry } from '@/lib/partners/queries';
+import { allJobs } from '@/lib/invoicing/jobs';
+import { loadRound } from '@/lib/crm/queries';
+import type { WorkOption } from './forms';
 import { currentStaff } from '@/lib/supabase/server';
 import { DrawingForm, EditEntry, HoursForm, IncomeForm } from './forms';
 import { Timer } from './timer';
@@ -27,10 +30,28 @@ export default async function TimesheetPage({
   const from = params.from ?? weekStart(date);
   const to = params.to ?? addDays(from, 6);
 
-  const [books, staff] = await Promise.all([
+  const [books, staff, jobs, round] = await Promise.all([
     loadPeriodBooks(from, to),
     currentStaff(),
+    allJobs(),
+    loadRound(),
   ]);
+
+  // Jobs first — hours on a cost-plus job are what it gets billed for.
+  const work: WorkOption[] = [
+    ...jobs
+      .filter((job) => job.status !== 'done' && job.status !== 'cancelled')
+      .map((job) => ({
+        id: job.id,
+        kind: 'job' as const,
+        label: `${round.customerById(job.customerId)?.name ?? 'Unknown'} — ${job.title}`,
+      })),
+    ...books.customers.map((customer) => ({
+      id: customer.id,
+      kind: 'customer' as const,
+      label: customer.name,
+    })),
+  ];
 
   const people = books.split.partners.map((p) => ({ id: p.id, name: p.name }));
   const isOwner = staff?.role === 'owner';
@@ -72,7 +93,7 @@ export default async function TimesheetPage({
               </p>
             ) : (
               <div className="mt-3">
-                <Timer running={myTimer} customers={books.customers} />
+                <Timer running={myTimer} work={work} />
               </div>
             )}
             {othersRunning.map((timer) => (
@@ -187,12 +208,12 @@ export default async function TimesheetPage({
                 today={date}
                 defaultHours={params.hours}
                 defaultWhat={params.what}
-                customers={books.customers}
+                work={work}
               />
             </div>
           </section>
 
-          <HourRows entries={books.entries} customers={books.customers} />
+          <HourRows entries={books.entries} work={work} />
 
           <section className={`${card} mt-6`}>
             <p className={legend}>Money taken out</p>
@@ -255,13 +276,19 @@ export default async function TimesheetPage({
 /** Hours get their own list, because these are the rows you edit. */
 function HourRows({
   entries,
-  customers,
+  work,
 }: {
   entries: TimesheetEntry[];
-  customers: { id: string; name: string }[];
+  work: WorkOption[];
 }) {
-  const nameOf = (id?: string) =>
-    id ? customers.find((c) => c.id === id)?.name : undefined;
+  const nameOf = (entry: TimesheetEntry) => {
+    const match = entry.jobId
+      ? work.find((o) => o.kind === 'job' && o.id === entry.jobId)
+      : entry.customerId
+        ? work.find((o) => o.kind === 'customer' && o.id === entry.customerId)
+        : undefined;
+    return match?.label;
+  };
 
   return (
     <section className="mt-6">
@@ -280,9 +307,9 @@ function HourRows({
                   <span className="font-medium">{entry.staffName}</span>
                   <span className="min-w-0 flex-1 truncate text-bark/60">
                     {entry.description ?? '—'}
-                    {nameOf(entry.customerId) && (
+                    {nameOf(entry) && (
                       <span className="ml-2 rounded-full bg-leaf-soft px-2 py-0.5 text-[11px] text-leaf">
-                        {nameOf(entry.customerId)}
+                        {nameOf(entry)}
                       </span>
                     )}
                   </span>
@@ -296,7 +323,8 @@ function HourRows({
                   hours={(entry.minutes / 60).toFixed(2)}
                   description={entry.description ?? ''}
                   customerId={entry.customerId}
-                  customers={customers}
+                  jobId={entry.jobId}
+                  work={work}
                 />
                 <form action={removeRow} className="mt-2">
                   <input type="hidden" name="table" value="timesheet_entries" />

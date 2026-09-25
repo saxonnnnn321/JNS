@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { cancelTimer, startTimer, stopTimer, type FormResult } from './actions';
+import { WorkPicker, type WorkOption } from './forms';
 
 const input =
   'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
@@ -17,13 +18,13 @@ const input =
  */
 export function Timer({
   running,
-  customers,
+  work,
 }: {
   running: { startedAt: string; description?: string; customerId?: string } | null;
-  customers: { id: string; name: string }[];
+  work: WorkOption[];
 }) {
   if (running) return <RunningClock running={running} />;
-  return <IdleClock customers={customers} />;
+  return <IdleClock work={work} />;
 }
 
 function elapsedLabel(startedAt: string, now: number): string {
@@ -109,7 +110,7 @@ function RunningClock({
   );
 }
 
-function IdleClock({ customers }: { customers: { id: string; name: string }[] }) {
+function IdleClock({ work }: { work: WorkOption[] }) {
   const [result, start, starting] = useActionState<FormResult, FormData>(
     startTimer,
     null,
@@ -126,17 +127,7 @@ function IdleClock({ customers }: { customers: { id: string; name: string }[] })
             placeholder="Penrith run, three lawns"
           />
         </label>
-        <label className="block text-sm">
-          Which job <span className="text-bark/40">(optional)</span>
-          <select name="customerId" className={input} defaultValue="">
-            <option value="">Not against a customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <WorkPicker options={work} />
       </div>
       <button
         type="submit"

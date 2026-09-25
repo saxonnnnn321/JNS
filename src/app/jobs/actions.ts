@@ -51,6 +51,9 @@ const jobFields = z.object({
     .union([z.coerce.number().int().min(0).max(100_000), z.literal('')])
     .optional(),
   status: z.enum(['quoted', 'scheduled', 'in_progress', 'done', 'cancelled']),
+  pricing: z.enum(['fixed', 'costPlus']),
+  labourRate: dollars,
+  markupPercent: z.coerce.number().min(0).max(100),
   scheduledFor: z.union([day, z.literal('')]).optional(),
   completedOn: z.union([day, z.literal('')]).optional(),
   notes: z.string().trim().max(1000).optional(),
@@ -67,6 +70,9 @@ function read(data: FormData) {
     materials: field(data, 'materials') || '0',
     estimatedMinutes: field(data, 'estimatedMinutes') || '',
     status: field(data, 'status') || 'quoted',
+    pricing: field(data, 'pricing') || 'fixed',
+    labourRate: field(data, 'labourRate') || '150',
+    markupPercent: field(data, 'markupPercent') || '0',
     scheduledFor: field(data, 'scheduledFor') || '',
     completedOn: field(data, 'completedOn') || '',
     notes: field(data, 'notes'),
@@ -81,6 +87,10 @@ function payload(input: z.infer<typeof jobFields>) {
 
   return {
     property_id: input.propertyId || null,
+    pricing: input.pricing,
+    labour_rate_cents: Math.round(input.labourRate * 100),
+    // Percent in the form, basis points in the database: 15% -> 1500.
+    markup_basis_points: Math.round(input.markupPercent * 100),
     title: input.title,
     description: input.description || null,
     kind: input.kind,

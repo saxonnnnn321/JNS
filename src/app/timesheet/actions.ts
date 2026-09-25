@@ -57,12 +57,16 @@ export async function logHours(
       // Typed as hours because that is how people think about a day's work.
       hours: z.coerce.number().min(0.05, 'How long?').max(24),
       description: z.string().trim().max(300).optional(),
+      customerId: z.string().uuid().optional().or(z.literal('')),
+      jobId: z.string().uuid().optional().or(z.literal('')),
     })
     .safeParse({
       staffId: field(data, 'staffId'),
       workDate: field(data, 'workDate') || businessDate(),
       hours: field(data, 'hours'),
       description: field(data, 'description'),
+      customerId: field(data, 'customerId'),
+      jobId: field(data, 'jobId'),
     });
 
   if (!parsed.success) {
@@ -75,6 +79,10 @@ export async function logHours(
     work_date: parsed.data.workDate,
     minutes: Math.round(parsed.data.hours * 60),
     description: parsed.data.description || null,
+    customer_id: parsed.data.customerId || null,
+    // Hours on a cost-plus job are what it gets billed for, so this is not
+    // just a label.
+    job_id: parsed.data.jobId || null,
   });
 
   if (error) return fail(error.message, 'Could not save those hours');
@@ -190,6 +198,7 @@ export async function startTimer(
 
   const description = field(data, 'description').trim().slice(0, 300);
   const customerId = field(data, 'customerId');
+  const jobId = field(data, 'jobId');
 
   const supabase = await createClient();
   // One clock per person. Starting a second replaces the first rather than
@@ -200,6 +209,7 @@ export async function startTimer(
       started_at: new Date().toISOString(),
       description: description || null,
       customer_id: customerId || null,
+      job_id: jobId || null,
     },
     { onConflict: 'staff_id' },
   );
@@ -220,7 +230,7 @@ export async function stopTimer(
   const supabase = await createClient();
   const { data: timer, error: readError } = await supabase
     .from('running_timers')
-    .select('started_at, description, customer_id')
+    .select('started_at, description, customer_id, job_id')
     .eq('staff_id', staff.id)
     .maybeSingle();
 
@@ -242,6 +252,7 @@ export async function stopTimer(
     minutes,
     description: description || null,
     customer_id: timer.customer_id,
+    job_id: timer.job_id,
   });
 
   if (insertError) return fail(insertError.message, 'Could not save those hours');
@@ -283,6 +294,7 @@ export async function updateEntry(
       hours: z.coerce.number().min(0.05, 'How long?').max(24),
       description: z.string().trim().max(300).optional(),
       customerId: z.string().uuid().optional().or(z.literal('')),
+      jobId: z.string().uuid().optional().or(z.literal('')),
     })
     .safeParse({
       id: field(data, 'id'),
@@ -290,6 +302,7 @@ export async function updateEntry(
       hours: field(data, 'hours'),
       description: field(data, 'description'),
       customerId: field(data, 'customerId'),
+      jobId: field(data, 'jobId'),
     });
 
   if (!parsed.success) {
@@ -304,6 +317,7 @@ export async function updateEntry(
       minutes: Math.round(parsed.data.hours * 60),
       description: parsed.data.description || null,
       customer_id: parsed.data.customerId || null,
+      job_id: parsed.data.jobId || null,
     })
     .eq('id', parsed.data.id);
 

@@ -45,7 +45,9 @@ function fail(message: string | undefined, fallback: string): ReceiptResult {
 }
 
 const schema = z.object({
-  storagePath: z.string().trim().min(1, 'The photo did not upload'),
+  // Optional: you lost the docket, or there never was one — cash for a
+  // trailer load of soil. The cost is still real and still belongs on the job.
+  storagePath: z.string().trim().optional(),
   supplier: z.string().trim().max(120).optional(),
   amount: dollars,
   purchasedOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date'),
@@ -103,7 +105,7 @@ export async function saveReceipt(
   }
 
   const { error } = await supabase.from('receipts').insert({
-    storage_path: input.storagePath,
+    storage_path: input.storagePath || null,
     supplier: input.supplier || null,
     amount_cents: amountCents,
     purchased_on: input.purchasedOn,

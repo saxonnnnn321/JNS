@@ -20,10 +20,14 @@ export type ClaimLike = {
   invoiceId?: string;
 };
 
+/**
+ * Takes a total rather than a price, because a cost-plus job has no price —
+ * it is worth whatever the hours and materials have come to so far. See
+ * lib/invoicing/value.ts, which works that figure out.
+ */
 export type JobLike = {
   id: string;
-  priceCents: number;
-  materialsCents: number;
+  totalCents: number;
 };
 
 export type JobLedger = {
@@ -39,7 +43,7 @@ export type JobLedger = {
 };
 
 export function jobLedger(job: JobLike, claims: ClaimLike[]): JobLedger {
-  const totalCents = job.priceCents + job.materialsCents;
+  const totalCents = Math.max(0, job.totalCents);
   const claimedCents = claims
     .filter((claim) => claim.jobId === job.id)
     .reduce((total, claim) => total + claim.amountCents, 0);

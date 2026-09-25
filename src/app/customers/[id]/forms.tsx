@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   addPlan,
   addProperty,
@@ -335,12 +335,16 @@ export function JobForm({
     scheduledFor?: string;
     completedOn?: string;
     notes?: string;
+    pricing?: string;
+    labourRateCents?: number;
+    markupBasisPoints?: number;
   };
 }) {
   const [result, submit, pending] = useActionState<JobResult, FormData>(
     job ? updateJob : addJob,
     null,
   );
+  const [pricing, setPricing] = useState(job?.pricing ?? 'fixed');
 
   return (
     <form action={submit}>
@@ -356,6 +360,24 @@ export function JobForm({
           required
         />
       </label>
+      <label className="mt-3 block text-sm">
+        How it is priced
+        <select
+          name="pricing"
+          className={input}
+          value={pricing}
+          onChange={(e) => setPricing(e.target.value)}
+        >
+          <option value="fixed">Fixed price — you quoted it</option>
+          <option value="costPlus">Cost plus — hours and materials as they go</option>
+        </select>
+        <span className="mt-1 block text-xs text-bark/45">
+          {pricing === 'costPlus'
+            ? 'Worked out from hours logged to this job and receipts filed against it. The total moves as the job runs.'
+            : 'The price is the price, whatever the job ends up taking.'}
+        </span>
+      </label>
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
           Type
@@ -378,30 +400,69 @@ export function JobForm({
             ))}
           </select>
         </label>
-        <label className="block text-sm">
-          Price agreed
-          <input
-            name="price"
-            className={input}
-            inputMode="decimal"
-            defaultValue={job ? (job.priceCents / 100).toFixed(2) : ''}
-            placeholder="$4,200"
-            required
-          />
-        </label>
-        <label className="block text-sm">
-          Materials
-          <input
-            name="materials"
-            className={input}
-            inputMode="decimal"
-            defaultValue={job ? (job.materialsCents / 100).toFixed(2) : ''}
-            placeholder="$0"
-          />
-          <span className="mt-1 block text-xs text-bark/45">
-            Billed as its own line, so they can see the split.
-          </span>
-        </label>
+        {pricing === 'fixed' ? (
+          <>
+            <label className="block text-sm">
+              Price agreed
+              <input
+                name="price"
+                className={input}
+                inputMode="decimal"
+                defaultValue={job ? (job.priceCents / 100).toFixed(2) : ''}
+                placeholder="$4,200"
+                required
+              />
+            </label>
+            <label className="block text-sm">
+              Materials
+              <input
+                name="materials"
+                className={input}
+                inputMode="decimal"
+                defaultValue={job ? (job.materialsCents / 100).toFixed(2) : ''}
+                placeholder="$0"
+              />
+              <span className="mt-1 block text-xs text-bark/45">
+                Billed as its own line, so they can see the split.
+              </span>
+            </label>
+          </>
+        ) : (
+          <>
+            <label className="block text-sm">
+              Hourly rate
+              <input
+                name="labourRate"
+                className={input}
+                inputMode="decimal"
+                defaultValue={
+                  job?.labourRateCents ? (job.labourRateCents / 100).toFixed(2) : '150'
+                }
+                placeholder="$150"
+                required
+              />
+            </label>
+            <label className="block text-sm">
+              Margin on materials
+              <input
+                name="markupPercent"
+                className={input}
+                inputMode="decimal"
+                defaultValue={
+                  job?.markupBasisPoints ? job.markupBasisPoints / 100 : '0'
+                }
+                placeholder="15"
+              />
+              <span className="mt-1 block text-xs text-bark/45">
+                Percent. Covers your time buying and carting it. 0 is fine.
+              </span>
+            </label>
+            {/* The engine ignores these for cost-plus, but the form still
+                posts them, so send something valid. */}
+            <input type="hidden" name="price" value="0" />
+            <input type="hidden" name="materials" value="0" />
+          </>
+        )}
         <label className="block text-sm">
           Where it is up to
           <select name="status" className={input} defaultValue={job?.status ?? 'quoted'}>
