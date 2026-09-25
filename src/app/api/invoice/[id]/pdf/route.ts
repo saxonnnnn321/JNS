@@ -17,12 +17,26 @@ export async function GET(
     return Response.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const pdf = await renderInvoicePdf(toDocument(invoice));
+  let pdf: Buffer;
+  try {
+    pdf = await renderInvoicePdf(toDocument(invoice));
+  } catch (cause) {
+    // A blank page is the worst possible way to report this. Say it in words.
+    console.error('could not render the invoice PDF', cause);
+    return new Response(
+      `Could not build the PDF for ${invoice.reference}: ${
+        cause instanceof Error ? cause.message : 'unknown error'
+      }`,
+      { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
+    );
+  }
 
+  // `inline` so "View it" shows in the browser; the download button carries
+  // its own `download` attribute, which overrides this and saves the file.
   return new Response(new Uint8Array(pdf), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${invoice.reference}.pdf"`,
+      'Content-Disposition': `inline; filename="${invoice.reference}.pdf"`,
       'Cache-Control': 'no-store',
     },
   });

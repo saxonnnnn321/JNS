@@ -115,11 +115,23 @@ export default async function InvoicePage({
       </section>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
+        {/* `download` matters: without it the browser navigates to the PDF
+            instead of saving it, and a phone that cannot render one inline
+            just shows a blank page. */}
         <a
           href={`/api/invoice/${invoice.id}/pdf`}
+          download={`${invoice.reference}.pdf`}
           className="rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90"
         >
           Download PDF
+        </a>
+        <a
+          href={`/api/invoice/${invoice.id}/pdf`}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-lg border border-black/15 px-4 py-2 text-sm hover:border-leaf"
+        >
+          View it
         </a>
 
         {(['draft', 'sent', 'paid'] as const)
