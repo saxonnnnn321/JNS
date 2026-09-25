@@ -204,31 +204,21 @@ export function InvoiceDocument({ invoice }: { invoice: InvoiceDocumentData }) {
           </View>
         </View>
 
-        <View style={styles.pay}>
-          <Text style={styles.label}>HOW TO PAY</Text>
-          {hasBankDetails ? (
+        {/* Just the account, nothing else. No payment-terms line, no
+            reference line, and no note about GST — the document already says
+            "Invoice" rather than "Tax invoice" and shows no GST amount,
+            which is all the law actually asks of a business that is not
+            registered. The whole block disappears until there is an account
+            to pay into, rather than printing an apology. */}
+        {hasBankDetails && (
+          <View style={styles.pay}>
+            <Text style={styles.label}>HOW TO PAY</Text>
             <Text>
               {BUSINESS.payment.accountName} · BSB {BUSINESS.payment.bsb} ·
               Account {BUSINESS.payment.accountNumber}
             </Text>
-          ) : (
-            /* Printing zeros here would invite someone to pay them. */
-            <Text>
-              Bank details to follow — please call {BUSINESS.phone} or email{' '}
-              {BUSINESS.email} to arrange payment.
-            </Text>
-          )}
-          <Text style={styles.muted}>
-            Please use {invoice.reference} as the reference. Payment terms{' '}
-            {BUSINESS.payment.termsDays} days.
-          </Text>
-          {!gst && (
-            <Text style={styles.muted}>
-              No GST has been charged — {BUSINESS.tradingName} is not
-              registered for GST.
-            </Text>
-          )}
-        </View>
+          </View>
+        )}
 
         <Text style={styles.footer} fixed>
           {BUSINESS.tradingName} · ABN {BUSINESS.abn} · {BUSINESS.phone}
