@@ -32,6 +32,8 @@ function field(data: FormData, key: string): string {
 }
 
 const schema = z.object({
+  /** Known when the quote was started from an existing customer's page. */
+  customerId: z.string().uuid().optional().or(z.literal('')),
   name: z.string().trim().min(1, 'Who is it for?'),
   phone: z.string().trim().max(40).optional(),
   email: z.union([z.string().trim().email('That email looks wrong'), z.literal('')]),
@@ -56,6 +58,7 @@ export async function saveQuote(
   data: FormData,
 ): Promise<SaveQuoteResult> {
   const parsed = schema.safeParse({
+    customerId: field(data, 'customerId'),
     name: field(data, 'name'),
     phone: field(data, 'phone'),
     email: field(data, 'email'),
@@ -77,15 +80,19 @@ export async function saveQuote(
   const input = parsed.data;
   const supabase = await createClient();
 
-  // Reuse a customer of the same name rather than making a second Dave.
-  const { data: existing } = await supabase
-    .from('customers')
-    .select('id')
-    .ilike('name', input.name)
-    .limit(1)
-    .maybeSingle();
+  // Started from their page, so we already know exactly who. Matching by
+  // name is only a fallback, and a poor one when two customers share a name.
+  let customerId = input.customerId || undefined;
 
-  let customerId = existing?.id as string | undefined;
+  if (!customerId) {
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('id')
+      .ilike('name', input.name)
+      .limit(1)
+      .maybeSingle();
+    customerId = existing?.id as string | undefined;
+  }
 
   if (!customerId) {
     const { data: created, error } = await supabase

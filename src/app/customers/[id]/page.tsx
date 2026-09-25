@@ -142,6 +142,15 @@ export default async function CustomerPage({
         · since {formatBusinessDate(customer.since)}
       </p>
 
+      {/* Their details and addresses come across, so quoting a second job for
+          someone already on the books is one tap rather than a retype. */}
+      <Link
+        href={`/quotes/new?customer=${customer.id}`}
+        className="mt-3 inline-block rounded-lg border border-leaf px-4 py-2 text-sm font-medium text-leaf hover:bg-leaf-soft"
+      >
+        + New quote for {customer.name}
+      </Link>
+
       {invoiceFlag === 'nothing' && (
         <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
           Nothing to invoice yet. Tick a visit off the run sheet, mark a job

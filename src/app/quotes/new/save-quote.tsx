@@ -18,11 +18,14 @@ const input =
  * one press.
  */
 export function SaveQuote({
+  customerId,
   customer,
   address,
   lawnAreaM2,
   options,
 }: {
+  /** Set when the quote was started from an existing customer's page. */
+  customerId?: string;
   customer: { name: string; phone: string; email: string };
   address: { addressLine: string; suburb: string; postcode: string };
   lawnAreaM2: number;
@@ -40,6 +43,7 @@ export function SaveQuote({
 
   return (
     <form action={submit} className="mt-3">
+      <input type="hidden" name="customerId" value={customerId ?? ''} />
       <input type="hidden" name="name" value={customer.name} />
       <input type="hidden" name="phone" value={customer.phone} />
       <input type="hidden" name="email" value={customer.email} />
