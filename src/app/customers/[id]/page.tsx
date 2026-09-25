@@ -20,6 +20,7 @@ import {
   extrasForCustomer,
   jobsForCustomer,
 } from '@/lib/invoicing/jobs';
+import { loadReceipts } from '@/lib/receipts/queries';
 import {
   EditCustomer,
   ExtraForm,
@@ -48,11 +49,13 @@ export default async function CustomerPage({
   const { id } = await params;
   const { invoice: invoiceFlag } = await searchParams;
 
-  const [round, jobs, extras] = await Promise.all([
+  const [round, jobs, extras, receiptList] = await Promise.all([
     loadRound(),
     jobsForCustomer(id),
     extrasForCustomer(id),
+    loadReceipts(id),
   ]);
+  const receipts = receiptList.receipts;
 
   const customer = round.customerById(id);
   if (!customer) notFound();
@@ -452,6 +455,39 @@ export default async function CustomerPage({
           <ExtraForm customerId={customer.id} today={date} />
         </Panel>
       </section>
+
+      {/* ---------- receipts ---------- */}
+      {receipts.length > 0 && (
+        <section className="mt-6">
+          <h2 className={legend}>Receipts</h2>
+          <p className="mt-1 text-xs text-bark/45">
+            What was bought for this customer. The charged-back ones already
+            appear above as extra charges.
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-3">
+            {receipts.map((receipt) => (
+              <li key={receipt.id} className="w-28">
+                {receipt.photoUrl && (
+                  <a href={receipt.photoUrl} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={receipt.photoUrl}
+                      alt={`Receipt from ${receipt.supplier ?? 'a supplier'}`}
+                      className="h-32 w-28 rounded-lg border border-black/10 object-cover hover:border-leaf"
+                    />
+                  </a>
+                )}
+                <p className="mt-1 text-xs font-medium">
+                  {formatMoney(receipt.amountCents)}
+                </p>
+                <p className="truncate text-[11px] text-bark/50">
+                  {receipt.supplier ?? 'Receipt'}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* ---------- history ---------- */}
       <section className="mt-6">
