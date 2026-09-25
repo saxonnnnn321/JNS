@@ -94,6 +94,8 @@ const WRITES: Record<string, string[]> = {
     'price_cents', 'materials_cents', 'estimated_minutes', 'status',
     'scheduled_for', 'completed_on', 'notes', 'invoice_id',
     'pricing', 'labour_rate_cents', 'markup_basis_points',
+    // Written when a quote is produced and when it is emailed (0010).
+    'quote_reference', 'quote_sent_at',
   ],
   invoice_extras: [
     'customer_id', 'description', 'amount_cents', 'incurred_on', 'invoice_id',
