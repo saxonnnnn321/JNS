@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMPTY_DIRECTORY,
   extractAddress,
   matchCustomer,
   routeCommand,
@@ -268,5 +269,37 @@ describe('routeCommand — the timesheet', () => {
     );
     if (action.kind !== 'navigate') throw new Error('expected a navigation');
     expect(action.href).toContain('/quotes/new');
+  });
+});
+
+describe('the pages added after the voice router was written', () => {
+  it('opens the jobs board', () => {
+    expect(routeCommand('open the jobs board', EMPTY_DIRECTORY)).toMatchObject({
+      kind: 'navigate',
+      href: '/jobs',
+    });
+    expect(routeCommand("what's in the pipeline", EMPTY_DIRECTORY)).toMatchObject({
+      href: '/jobs',
+    });
+  });
+
+  it('opens receipts', () => {
+    expect(routeCommand('show me receipts', EMPTY_DIRECTORY)).toMatchObject({
+      kind: 'navigate',
+      href: '/receipts',
+    });
+  });
+
+  it('does not hijack the word "job" said in passing', () => {
+    // You talk about the job all day. This has to stay dictation.
+    expect(routeCommand('the job took longer than I thought', EMPTY_DIRECTORY)).toMatchObject({
+      kind: 'dictate',
+    });
+  });
+
+  it('sends "receipt for the job" to receipts, not the board', () => {
+    expect(routeCommand('receipt for the job', EMPTY_DIRECTORY)).toMatchObject({
+      href: '/receipts',
+    });
   });
 });

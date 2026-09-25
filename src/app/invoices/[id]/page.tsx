@@ -64,10 +64,10 @@ export default async function InvoicePage({
 
       {!hasBankDetails && (
         <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-          No bank account set yet, so the invoice asks the customer to call you
-          to arrange payment rather than printing anything they could pay into
-          by mistake. Send me the BSB and account number once the business
-          account is open.
+          No bank account set yet, so the PDF carries no payment details at all
+          — the customer gets a bill with no way to pay it and has to ring you.
+          Send me the BSB and account number once the business account is open
+          and every invoice from then on prints them.
         </p>
       )}
 

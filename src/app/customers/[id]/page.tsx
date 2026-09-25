@@ -144,14 +144,29 @@ export default async function CustomerPage({
         · since {formatBusinessDate(customer.since)}
       </p>
 
-      {/* Their details and addresses come across, so quoting a second job for
-          someone already on the books is one tap rather than a retype. */}
-      <Link
-        href={`/quotes/new?customer=${customer.id}`}
-        className="mt-3 inline-block rounded-lg border border-leaf px-4 py-2 text-sm font-medium text-leaf hover:bg-leaf-soft"
-      >
-        + New quote for {customer.name}
-      </Link>
+      {/* Two kinds of quote, and they are genuinely different tools, so both
+          doors are here and both say which is which. Their details and
+          addresses come across either way rather than being retyped. */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link
+          href={`/quotes/new?customer=${customer.id}`}
+          className="rounded-lg border border-leaf px-4 py-2 text-sm font-medium text-leaf hover:bg-leaf-soft"
+        >
+          Quote a mow
+          <span className="block text-xs font-normal text-bark/50">
+            Measures the block, prices the round
+          </span>
+        </Link>
+        <a
+          href="#jobs"
+          className="rounded-lg border border-leaf px-4 py-2 text-sm font-medium text-leaf hover:bg-leaf-soft"
+        >
+          Quote a job
+          <span className="block text-xs font-normal text-bark/50">
+            Construction, cleanups, cost plus
+          </span>
+        </a>
+      </div>
 
       {invoiceFlag === 'nothing' && (
         <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
@@ -365,11 +380,12 @@ export default async function CustomerPage({
       </section>
 
       {/* ---------- one-off jobs ---------- */}
-      <section className="mt-6">
+      <section id="jobs" className="mt-6 scroll-mt-4">
         <h2 className={legend}>Jobs</h2>
         <p className="mt-1 text-xs text-bark/45">
-          Construction, cleanups, anything that happens once for an agreed
-          price. Mark one finished and it becomes invoiceable.
+          Construction, cleanups, anything that happens once — at a price you
+          quoted or at cost plus. Add one, and the quote to send them is on it.
+          Mark it finished and it becomes invoiceable.
         </p>
         {jobs.length === 0 ? (
           <p className={`${card} mt-2 text-sm text-bark/50`}>No jobs yet.</p>
@@ -429,6 +445,11 @@ export default async function CustomerPage({
                           {job.status !== 'done' && (
                             <form action={finishJob} className="mb-3">
                               <input type="hidden" name="id" value={job.id} />
+                              <input
+                                type="hidden"
+                                name="customerId"
+                                value={customer.id}
+                              />
                               <button
                                 type="submit"
                                 className="rounded-lg border border-leaf px-4 py-2 text-xs font-medium text-leaf hover:bg-leaf-soft"
@@ -770,12 +791,20 @@ function JobClaims({
       {value.isCostPlus && (
         <p className="mt-2 text-xs text-bark/45">
           This figure moves as hours are logged and receipts filed against the
-          job. Log hours to it from the Timesheet, and pick it when you
-          photograph a receipt.
+          job. Log hours to it on the{' '}
+          <Link href="/timesheet" className="text-leaf hover:underline">
+            timesheet
+          </Link>
+          , and pick it when you{' '}
+          <Link href="/receipts" className="text-leaf hover:underline">
+            photograph a receipt
+          </Link>
+          . A receipt against a cost-plus job is billed by the job, so do not
+          also charge it back as an extra.
         </p>
       )}
 
-      {ledger.remainingCents > 0 && (
+      {ledger.remainingCents > 0 ? (
         <div className="mt-3 border-t border-black/5 pt-3">
           <ClaimForm
             jobId={job.id}
@@ -784,6 +813,15 @@ function JobClaims({
             remainingLabel={formatMoney(ledger.remainingCents)}
           />
         </div>
+      ) : (
+        /* Saying why the form is not here. A cost-plus job with nothing
+           logged has nothing to bill yet, which is not the same as being
+           fully claimed. */
+        <p className="mt-3 border-t border-black/5 pt-3 text-xs text-bark/50">
+          {value.isCostPlus && value.totalCents === 0
+            ? 'Nothing to bill in stages yet — log the hours or file the receipts against this job first.'
+            : 'Every dollar of this job has been claimed already.'}
+        </p>
       )}
     </div>
   );

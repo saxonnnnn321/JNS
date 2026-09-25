@@ -52,11 +52,16 @@ export default async function ReceiptsPage() {
               <ReceiptCapture
                 customers={customers}
                 jobs={jobs
-                  .filter((job) => job.status !== 'cancelled')
+                  // An invoiced job is closed: filing a receipt against it
+                  // would change what it is worth without changing the bill
+                  // that already went out.
+                  .filter((job) => job.status !== 'cancelled' && !job.invoiceId)
                   .map((job) => ({
                     id: job.id,
                     label: job.title,
                     customerId: job.customerId,
+                    // Decides whether charging it back would bill it twice.
+                    pricing: job.pricing,
                   }))}
                 today={date}
               />

@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { businessDate } from '@/lib/dates';
+import { formatMoney } from '@/lib/format';
+import { actualsFor, NO_ACTUALS } from '@/lib/invoicing/jobs';
+import { jobValue } from '@/lib/invoicing/value';
+import { checkClaim } from '@/lib/invoicing/claims';
 
 /**
  * One-off jobs: construction, cleanups, anything that is not the round.
@@ -152,7 +156,7 @@ export async function updateJob(
   return null;
 }
 
-/** One press from the jobs board: mark it finished today. */
+/** One press from a customer's page: mark it finished today. */
 export async function finishJob(data: FormData): Promise<void> {
   const id = field(data, 'id');
   if (!id) return;
@@ -165,7 +169,65 @@ export async function finishJob(data: FormData): Promise<void> {
   if (error) console.error('could not finish the job', error);
 
   revalidatePath('/jobs');
+  // A dynamic child is not covered by revalidating the list, so the customer
+  // whose job this is has to be named.
+  const customerId = field(data, 'customerId');
+  if (customerId) revalidatePath(`/customers/${customerId}`);
   revalidatePath('/customers');
+}
+
+/**
+ * Move a job one step along the board.
+ *
+ * Quoted → Booked in → Started → Finished, one press per step. The board only
+ * ever offers the next step, so a job cannot arrive at "finished" without
+ * having been agreed and started, and the completion date is only stamped on
+ * the step that earns it.
+ */
+export async function advanceJob(data: FormData): Promise<void> {
+  const id = field(data, 'id');
+  const to = field(data, 'to');
+  const customerId = field(data, 'customerId');
+  if (!id) return;
+
+  const next = z.enum(['scheduled', 'in_progress', 'done']).safeParse(to);
+  if (!next.success) return;
+
+  const patch: Record<string, string | null> = { status: next.data };
+  if (next.data === 'done') {
+    patch.completed_on = businessDate();
+  } else {
+    // Stepping back off "finished" must clear the date, or the job stays
+    // billable-looking with a completion it no longer has.
+    patch.completed_on = null;
+  }
+  if (next.data === 'scheduled') {
+    // Agreed today unless a date was already set when it was quoted.
+    const booked = await bookingDateOf(id);
+    if (!booked) patch.scheduled_for = businessDate();
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('one_off_jobs')
+    .update(patch)
+    .eq('id', id)
+    .is('invoice_id', null);
+  if (error) console.error('could not move the job on', error);
+
+  revalidatePath('/jobs');
+  if (customerId) revalidatePath(`/customers/${customerId}`);
+}
+
+/** The booking date already on a job, if any. */
+async function bookingDateOf(id: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('one_off_jobs')
+    .select('scheduled_for')
+    .eq('id', id)
+    .maybeSingle();
+  return (data as { scheduled_for: string | null } | null)?.scheduled_for ?? null;
 }
 
 export async function removeJob(data: FormData): Promise<void> {
@@ -247,6 +309,12 @@ export async function removeExtra(data: FormData): Promise<void> {
  *
  * Refuses to claim more than the job is worth. Over-claiming is a typo, and
  * the alternative to catching it here is an invoice that hands money back.
+ *
+ * "What the job is worth" has to come from `jobValue`, not from the price
+ * column. A cost-plus job has no price — its worth is the hours logged and the
+ * receipts filed — so reading the column made every cost-plus job worth $0 and
+ * refused every stage on it. Billing a big cost-plus job in stages is the
+ * whole reason progress claims exist.
  */
 export async function addClaim(
   _previous: JobResult,
@@ -278,7 +346,9 @@ export async function addClaim(
 
   const { data: job, error: jobError } = await supabase
     .from('one_off_jobs')
-    .select('price_cents, materials_cents, invoice_id')
+    .select(
+      'price_cents, materials_cents, invoice_id, pricing, labour_rate_cents, markup_basis_points',
+    )
     .eq('id', input.jobId)
     .maybeSingle();
   if (jobError || !job) return fail(jobError?.message, 'Could not find that job');
@@ -286,24 +356,45 @@ export async function addClaim(
     return { error: 'That job has already been invoiced in full.' };
   }
 
-  const { data: existing } = await supabase
-    .from('job_claims')
-    .select('amount_cents')
-    .eq('job_id', input.jobId);
+  const row = job as {
+    price_cents: number;
+    materials_cents: number;
+    pricing: 'fixed' | 'costPlus' | null;
+    labour_rate_cents: number | null;
+    markup_basis_points: number | null;
+  };
+
+  const [{ data: existing }, actuals] = await Promise.all([
+    supabase.from('job_claims').select('amount_cents').eq('job_id', input.jobId),
+    actualsFor([input.jobId]),
+  ]);
 
   const alreadyClaimed = ((existing ?? []) as { amount_cents: number }[]).reduce(
-    (total, row) => total + row.amount_cents,
+    (total, claimed) => total + claimed.amount_cents,
     0,
   );
-  const total = job.price_cents + job.materials_cents;
-  const remaining = total - alreadyClaimed;
 
-  if (amountCents > remaining) {
+  const value = jobValue(
+    {
+      pricing: row.pricing ?? 'fixed',
+      priceCents: row.price_cents,
+      materialsCents: row.materials_cents,
+      labourRateCents: row.labour_rate_cents ?? 15_000,
+      markupBasisPoints: row.markup_basis_points ?? 0,
+    },
+    actuals.get(input.jobId) ?? NO_ACTUALS,
+  );
+  const check = checkClaim({ value, claimedCents: alreadyClaimed, amountCents });
+  if (!check.ok) {
     return {
-      error: `Only ${(remaining / 100).toLocaleString('en-AU', {
-        style: 'currency',
-        currency: 'AUD',
-      })} is left unclaimed on this job.`,
+      error:
+        check.reason === 'nothingLogged'
+          ? 'Nothing is logged against this cost-plus job yet, so there is nothing to claim. Log the hours or file the receipts first.'
+          : `Only ${formatMoney(check.remainingCents)} is left unclaimed on this job${
+              value.isCostPlus
+                ? ' — that is what has been logged against it so far'
+                : ''
+            }.`,
     };
   }
 

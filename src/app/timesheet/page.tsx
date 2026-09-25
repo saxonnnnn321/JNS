@@ -38,13 +38,19 @@ export default async function TimesheetPage({
   ]);
 
   // Jobs first — hours on a cost-plus job are what it gets billed for.
+  //
+  // A finished job stays in the list until it is invoiced. Dropping it the
+  // moment it was marked done meant the last day's hours had nowhere to go,
+  // and on a cost-plus job those hours ARE the bill.
   const work: WorkOption[] = [
     ...jobs
-      .filter((job) => job.status !== 'done' && job.status !== 'cancelled')
+      .filter((job) => job.status !== 'cancelled' && !job.invoiceId)
       .map((job) => ({
         id: job.id,
         kind: 'job' as const,
-        label: `${round.customerById(job.customerId)?.name ?? 'Unknown'} — ${job.title}`,
+        label: `${round.customerById(job.customerId)?.name ?? 'Unknown'} — ${job.title}${
+          job.pricing === 'costPlus' ? ' (cost plus)' : ''
+        }${job.status === 'done' ? ' · finished' : ''}`,
       })),
     ...books.customers.map((customer) => ({
       id: customer.id,

@@ -123,10 +123,12 @@ export default async function SchedulePage() {
           every future date moves with it, with no re-entry.
         </p>
         <p className="mt-2 text-xs text-bark/50">
-          Days are grouped by suburb, which is most of the benefit of route
-          optimisation for a one-ute operation. Real optimisation, seasonal
-          frequency changes (weekly in summer, monthly in winter) and rain-day
-          bumping are the obvious next steps.
+          Only the mowing round is here. Construction and one-off work sits on
+          the{' '}
+          <Link href="/jobs" className="text-leaf hover:underline">
+            jobs board
+          </Link>{' '}
+          instead, because it has no cycle to work a date out from.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {(['weekly', 'fortnightly', 'monthly', 'onceOff'] as const).map((f) => (

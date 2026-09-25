@@ -121,6 +121,19 @@ const NAV_TARGETS: { href: string; label: string; match: RegExp }[] = [
     match: /\b(schedule|calendar|this week|next week|the round|upcoming)\b/i,
   },
   {
+    href: '/receipts',
+    label: 'receipts',
+    // Before /jobs, or "receipt for the job" would open the wrong page.
+    match: /\b(receipts?|dockets?|what i(?:'ve| have)? spent)\b/i,
+  },
+  {
+    href: '/jobs',
+    label: 'the jobs board',
+    // "job" on its own is far too common in speech to be a command — you say
+    // it about the work in front of you all day. It takes the board's name.
+    match: /\b(jobs board|the jobs|job board|pipeline|quoted jobs)\b/i,
+  },
+  {
     href: '/customers',
     label: 'customers',
     match: /\b(customers?|client list|customer list|the books)\b/i,

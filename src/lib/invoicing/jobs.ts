@@ -128,18 +128,27 @@ function toJob(row: JobRow): OneOffJob {
  * number that tells you whether you are quoting well.
  */
 export async function jobActualsFor(customerId: string): Promise<JobActualsMap> {
-  const actuals: JobActualsMap = new Map();
-  if (!supabaseConfigured) return actuals;
-
+  if (!supabaseConfigured) return new Map();
   const supabase = await createClient();
   const { data: jobRows } = await supabase
     .from('one_off_jobs')
     .select('id')
     .eq('customer_id', customerId);
+  return actualsFor(((jobRows ?? []) as { id: string }[]).map((row) => row.id));
+}
 
-  const jobIds = ((jobRows ?? []) as { id: string }[]).map((row) => row.id);
-  if (jobIds.length === 0) return actuals;
+/**
+ * The same figures for a known set of jobs.
+ *
+ * The jobs board needs this across the whole business: without it a cost-plus
+ * job reads as $0 there while the customer's page shows what it has actually
+ * come to, which is the same job showing two different numbers.
+ */
+export async function actualsFor(jobIds: string[]): Promise<JobActualsMap> {
+  const actuals: JobActualsMap = new Map();
+  if (!supabaseConfigured || jobIds.length === 0) return actuals;
 
+  const supabase = await createClient();
   const [hours, receipts] = await Promise.all([
     supabase.from('timesheet_entries').select('job_id, minutes').in('job_id', jobIds),
     supabase.from('receipts').select('job_id, amount_cents').in('job_id', jobIds),
@@ -303,8 +312,13 @@ export async function claimsForCustomer(customerId: string): Promise<JobClaim[]>
     .select('id')
     .eq('customer_id', customerId);
 
-  const jobIds = ((jobRows ?? []) as { id: string }[]).map((row) => row.id);
-  if (jobIds.length === 0) return [];
+  return claimsFor(((jobRows ?? []) as { id: string }[]).map((row) => row.id));
+}
+
+/** Every progress claim against a known set of jobs. */
+export async function claimsFor(jobIds: string[]): Promise<JobClaim[]> {
+  if (!supabaseConfigured || jobIds.length === 0) return [];
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from('job_claims')

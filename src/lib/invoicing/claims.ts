@@ -60,3 +60,37 @@ export function jobLedger(job: JobLike, claims: ClaimLike[]): JobLedger {
     overClaimed: rawRemaining < 0,
   };
 }
+
+/**
+ * May this stage be claimed?
+ *
+ * Split out from the server action because the rule it replaced was wrong in a
+ * way nothing caught: it capped a claim at the job's *price*, and a cost-plus
+ * job has no price. Every cost-plus job was therefore worth $0 here, and every
+ * stage on one was refused — on exactly the jobs progress claims exist for.
+ *
+ * Pure, so the rule is pinned by tests rather than by trying it in production.
+ */
+export type ClaimCheck =
+  | { ok: true }
+  | { ok: false; reason: 'nothingLogged' | 'overClaim'; remainingCents: number };
+
+export function checkClaim(input: {
+  /** What the job is worth now, from `jobValue`. */
+  value: { totalCents: number; isCostPlus: boolean };
+  /** Every claim already on it, billed or not. */
+  claimedCents: number;
+  amountCents: number;
+}): ClaimCheck {
+  const remainingCents = input.value.totalCents - input.claimedCents;
+
+  // A cost-plus job with no hours and no receipts is not worth nothing — it is
+  // not yet measured. Saying "only $0.00 is left" would be misleading.
+  if (input.value.isCostPlus && input.value.totalCents === 0) {
+    return { ok: false, reason: 'nothingLogged', remainingCents: 0 };
+  }
+  if (input.amountCents > remainingCents) {
+    return { ok: false, reason: 'overClaim', remainingCents };
+  }
+  return { ok: true };
+}

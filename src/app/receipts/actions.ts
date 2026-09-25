@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { businessDate } from '@/lib/dates';
+import { rechargePlan } from '@/lib/receipts/recharge';
 
 /**
  * Saving a receipt.
@@ -17,7 +18,9 @@ import { businessDate } from '@/lib/dates';
  *
  * A rechargeable receipt against a customer also creates the invoice line, so
  * the material you bought this morning is on their next bill without anyone
- * having to remember it.
+ * having to remember it — unless it is filed against a cost-plus job, which
+ * bills its own receipts. See lib/receipts/recharge.ts for that rule; getting
+ * it wrong charges the customer twice for the same load.
  */
 
 export type ReceiptResult = { error: string } | null;
@@ -86,8 +89,26 @@ export async function saveReceipt(
 
   const supabase = await createClient();
 
+  // How the job is priced decides whether a charge line is a second bill for
+  // the same thing, so it has to be read before anything is written.
+  let jobPricing: 'fixed' | 'costPlus' | undefined;
+  if (input.jobId) {
+    const { data: job } = await supabase
+      .from('one_off_jobs')
+      .select('pricing')
+      .eq('id', input.jobId)
+      .maybeSingle();
+    jobPricing = (job as { pricing: 'fixed' | 'costPlus' | null } | null)?.pricing ?? 'fixed';
+  }
+
+  const plan = rechargePlan({
+    hasCustomer: Boolean(input.customerId),
+    rechargeable: input.rechargeable === 'on',
+    jobPricing,
+  });
+
   let extraId: string | null = null;
-  if (rechargeable) {
+  if (plan.extraLine) {
     const { data: extra, error } = await supabase
       .from('invoice_extras')
       .insert({

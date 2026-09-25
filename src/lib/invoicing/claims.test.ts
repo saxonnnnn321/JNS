@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jobLedger, type ClaimLike, type JobLike } from './claims';
+import { checkClaim, jobLedger, type ClaimLike, type JobLike } from './claims';
 
 const job: JobLike = { id: 'j1', totalCents: 2_000_000 };
 
@@ -82,5 +82,62 @@ describe('jobLedger', () => {
       const ledger = jobLedger(job, claims);
       expect(ledger.claimedCents + ledger.remainingCents).toBe(ledger.totalCents);
     }
+  });
+});
+
+describe('checkClaim', () => {
+  const fixed = { totalCents: 420_000, isCostPlus: false };
+
+  it('allows a stage inside what the job is worth', () => {
+    expect(
+      checkClaim({ value: fixed, claimedCents: 0, amountCents: 200_000 }),
+    ).toEqual({ ok: true });
+  });
+
+  it('allows a stage that exactly finishes the job off', () => {
+    expect(
+      checkClaim({ value: fixed, claimedCents: 220_000, amountCents: 200_000 }),
+    ).toEqual({ ok: true });
+  });
+
+  it('refuses one cent more than the job is worth', () => {
+    const result = checkClaim({
+      value: fixed,
+      claimedCents: 220_000,
+      amountCents: 200_001,
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'overClaim' });
+  });
+
+  it('lets a cost-plus job be claimed against what has been logged', () => {
+    // 20 hours at $150 = $3,000 logged. Claiming $1,000 of it is fine.
+    expect(
+      checkClaim({
+        value: { totalCents: 300_000, isCostPlus: true },
+        claimedCents: 0,
+        amountCents: 100_000,
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it('says a bare cost-plus job is unmeasured, not worth nothing', () => {
+    // This is the case that used to refuse every claim with "only $0.00 left".
+    expect(
+      checkClaim({
+        value: { totalCents: 0, isCostPlus: true },
+        claimedCents: 0,
+        amountCents: 100_000,
+      }),
+    ).toMatchObject({ ok: false, reason: 'nothingLogged' });
+  });
+
+  it('still refuses claiming more than a cost-plus job has come to', () => {
+    expect(
+      checkClaim({
+        value: { totalCents: 300_000, isCostPlus: true },
+        claimedCents: 250_000,
+        amountCents: 100_000,
+      }),
+    ).toMatchObject({ ok: false, reason: 'overClaim', remainingCents: 50_000 });
   });
 });

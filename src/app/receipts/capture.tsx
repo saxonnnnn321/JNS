@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { saveReceipt, type ReceiptResult } from './actions';
+import { rechargePlan } from '@/lib/receipts/recharge';
 
 const input =
   'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
@@ -44,7 +45,10 @@ async function compress(file: File): Promise<Blob> {
 }
 
 export type Option = { id: string; label: string };
-export type JobOption = Option & { customerId: string };
+export type JobOption = Option & {
+  customerId: string;
+  pricing: 'fixed' | 'costPlus';
+};
 
 export function ReceiptCapture({
   customers,
@@ -66,11 +70,22 @@ export function ReceiptCapture({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [rechargeable, setRechargeable] = useState(true);
   const [customerId, setCustomerId] = useState('');
+  const [jobId, setJobId] = useState('');
   // No photo, just the amount. Common enough to be a first-class option.
   const [noPhoto, setNoPhoto] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const jobsForCustomer = jobs.filter((job) => job.customerId === customerId);
+  const chosenJob = jobsForCustomer.find((job) => job.id === jobId);
+
+  // The one rule that stops a purchase being billed twice, asked here so the
+  // form can explain itself before you press save rather than after.
+  const plan = rechargePlan({
+    hasCustomer: Boolean(customerId),
+    rechargeable,
+    jobPricing: chosenJob?.pricing,
+  });
+  const billedByJob = chosenJob?.pricing === 'costPlus';
   const ready = Boolean(storagePath) || noPhoto;
 
   async function take(file: File | undefined) {
@@ -224,37 +239,54 @@ export function ReceiptCapture({
           {customerId && jobsForCustomer.length > 0 && (
             <label className="mt-3 block text-sm">
               Against which job <span className="text-bark/40">(optional)</span>
-              <select name="jobId" className={input} defaultValue="">
+              <select
+                name="jobId"
+                className={input}
+                value={jobId}
+                onChange={(e) => setJobId(e.target.value)}
+              >
                 <option value="">Not a particular job</option>
                 {jobsForCustomer.map((job) => (
                   <option key={job.id} value={job.id}>
                     {job.label}
+                    {job.pricing === 'costPlus' ? ' — cost plus' : ''}
                   </option>
                 ))}
               </select>
               <span className="mt-1 block text-xs text-bark/45">
-                On a cost-plus job this adds to what it is worth.
+                On a cost-plus job this adds to what the job is worth.
               </span>
             </label>
           )}
 
           {customerId && (
-            <label className="mt-3 flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="rechargeable"
-                checked={rechargeable}
-                onChange={(e) => setRechargeable(e.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                Charge it back to them
-                <span className="block text-xs text-bark/45">
-                  Adds it to their next invoice automatically. Untick if you
-                  are absorbing it.
+            <>
+              <label className="mt-3 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="rechargeable"
+                  checked={rechargeable}
+                  onChange={(e) => setRechargeable(e.target.checked)}
+                  disabled={billedByJob}
+                  className="mt-1"
+                />
+                <span className={billedByJob ? 'text-bark/40' : undefined}>
+                  Charge it back to them
+                  <span className="block text-xs text-bark/45">
+                    Adds it to their next invoice automatically. Untick if you
+                    are absorbing it.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+              {/* Ticking this AND picking a cost-plus job used to bill the
+                  same purchase twice. Now the job wins and says so. */}
+              {billedByJob && (
+                <p className="mt-2 rounded-lg bg-leaf-soft p-2 text-xs text-bark/70">
+                  {plan.because} No separate charge line is added, or they
+                  would pay for it twice.
+                </p>
+              )}
+            </>
           )}
 
           <label className="mt-3 block text-sm">
