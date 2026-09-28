@@ -23,7 +23,7 @@ export function SendButton({
 
   if (!configured) {
     return (
-      <p className="mt-2 text-xs text-bark/45">
+      <p className="mt-2 text-xs text-faint">
         Email is not connected yet. Add GMAIL_USER and GMAIL_APP_PASSWORD, then
         redeploy, and a send button appears here.
       </p>
@@ -37,7 +37,7 @@ export function SendButton({
         <button
           type="submit"
           disabled={sending || !to}
-          className="rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90 disabled:cursor-not-allowed disabled:bg-bark/20"
+          className="rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90 disabled:cursor-not-allowed disabled:bg-ink/10"
           title={to ? `Send to ${to}` : 'No email address on file'}
         >
           {sending ? 'Sending…' : to ? `Email to ${to}` : 'No email on file'}

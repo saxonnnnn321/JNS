@@ -21,6 +21,7 @@ import { joinDictation, looksLikeAddress, tidyAddress } from '@/lib/voice/speech
 import { MicButton } from '@/components/mic-button';
 import { useVoiceTarget } from '@/components/voice-provider';
 import { SaveQuote } from './save-quote';
+import { btnPrimary as primary, input } from '@/components/ui';
 
 /**
  * Two inputs: an address and some photos.
@@ -150,12 +151,8 @@ async function fileToPhoto(file: File): Promise<Photo> {
   }
 }
 
-const card = 'rounded-xl border border-black/10 bg-white p-4 sm:p-5';
-const legend = 'text-xs font-semibold uppercase tracking-wider text-bark/50';
-const input =
-  'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
-const primary =
-  'rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90 disabled:cursor-not-allowed disabled:bg-bark/20';
+const card = 'rounded-xl border border-line bg-white p-4 sm:p-5';
+const legend = 'text-xs font-semibold uppercase tracking-wider text-muted';
 
 function StepHeading({ n, children }: { n: number; children: React.ReactNode }) {
   return (
@@ -405,7 +402,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex items-baseline justify-between">
         <h1 className="text-2xl font-bold text-leaf">New quote</h1>
-        <Link href="/" className="text-sm text-bark/50 hover:text-bark">
+        <Link href="/" className="text-sm text-muted hover:text-bark">
           ← Home
         </Link>
       </div>
@@ -462,7 +459,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
             )}
             {quoteFor && quoteFor.properties.length > 0 && (
               <div className="mt-3">
-                <p className="text-xs text-bark/50">
+                <p className="text-xs text-muted">
                   {quoteFor.name}&rsquo;s addresses
                 </p>
                 <div className="mt-1 flex flex-wrap gap-2">
@@ -491,13 +488,13 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                   {lookup.address.formatted}
                   {lookup.parcel.lotId ? ` · Lot ${lookup.parcel.lotId}` : ''}
                 </p>
-                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-bark/70 sm:grid-cols-4">
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-ink sm:grid-cols-4">
                   <span>Block <b>{lookup.parcel.areaM2} m²</b></span>
                   <span>Lawn <b>{measurements.lawnAreaM2} m²</b></span>
                   <span>Edges <b>{measurements.edgeMetres} m</b></span>
                   <span>Paving <b>{measurements.hardSurfaceM2} m²</b></span>
                 </div>
-                <p className="mt-2 text-bark/50">
+                <p className="mt-2 text-muted">
                   {lookup.buildingSource === 'openstreetmap'
                     ? 'House outline measured.'
                     : 'House size assumed — no outline on file.'}{' '}
@@ -513,7 +510,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
           {/* ---------- 2. the photos ---------- */}
           <section className={card}>
             <StepHeading n={2}>What the job looks like</StepHeading>
-            <p className="mt-2 text-xs text-bark/50">
+            <p className="mt-2 text-xs text-muted">
               The plan knows how big it is. Photos and your note are how it knows
               how bad it is. Either will do — both is better.
             </p>
@@ -547,7 +544,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
               <p className="mt-2 text-xs text-red-600">{noteVoice.error}</p>
             )}
 
-            <p className="mt-1 text-xs text-bark/45">
+            <p className="mt-1 text-xs text-faint">
               Plain words are fine. What you say beats what the photos suggest —
               you are the one who has seen it. Give a time (&ldquo;about an
               hour&rdquo;) and it is charged as exactly that, not estimated.
@@ -609,14 +606,14 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
 
             {assessment && (
               <div className="mt-4 rounded-lg bg-leaf-soft p-3 text-xs">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-bark/70 sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-ink sm:grid-cols-2">
                   {CONDITION_FIELDS.map((field) => (
                     <span key={field.key}>
                       {field.label}: <b>{conditionLabel(field.key, conditions[field.key])}</b>
                     </span>
                   ))}
                 </div>
-                <ul className="mt-2 space-y-1 text-bark/70">
+                <ul className="mt-2 space-y-1 text-ink">
                   {assessment.observations.map((line) => (
                     <li key={line}>· {line}</li>
                   ))}
@@ -626,7 +623,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                   assessment.greenWasteM3 !== null) && (
                   <div className="mt-2 border-t border-leaf/20 pt-2">
                     <p className="font-semibold text-leaf">Added from your note</p>
-                    <ul className="mt-1 space-y-1 text-bark/70">
+                    <ul className="mt-1 space-y-1 text-ink">
                       {assessment.statedLabour.map((entry) => (
                         <li key={entry.description}>
                           + {entry.description} — <b>{formatMinutes(entry.minutes)}</b>{' '}
@@ -733,9 +730,9 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
               className="flex w-full items-center justify-between text-left"
             >
               <span className={legend}>Adjust details</span>
-              <span className="text-xs text-bark/50">{adjusting ? 'Hide' : 'Show'}</span>
+              <span className="text-xs text-muted">{adjusting ? 'Hide' : 'Show'}</span>
             </button>
-            <p className="mt-1 text-xs text-bark/45">
+            <p className="mt-1 text-xs text-faint">
               Everything the lookup and the photos worked out, open to correction.
             </p>
 
@@ -744,7 +741,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                 <div className="mt-4 grid gap-3 sm:grid-cols-4">
                   {MEASUREMENT_FIELDS.map((field) => (
                     <label key={field.key} className="block text-sm">
-                      {field.label} <span className="text-bark/40">({field.unit})</span>
+                      {field.label} <span className="text-faint">({field.unit})</span>
                       <input
                         className={input}
                         type="number"
@@ -797,7 +794,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
         {/* ---------- the quote ---------- */}
         <div className="space-y-4 lg:sticky lg:top-8">
           {!hasQuote ? (
-            <div className={`${card} text-sm text-bark/50`}>
+            <div className={`${card} text-sm text-muted`}>
               <p className="font-medium text-bark">No quote yet</p>
               <p className="mt-1">
                 Look up an address and the price appears here. Add photos and it
@@ -813,13 +810,13 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                     {Math.round(confidence * 100)}%
                   </span>
                 </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bark/10">
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/6">
                   <div
                     className="h-full rounded-full bg-leaf transition-all"
                     style={{ width: `${Math.round(confidence * 100)}%` }}
                   />
                 </div>
-                <p className="mt-2 text-bark/55">
+                <p className="mt-2 text-muted">
                   Size {Math.round(measurementConfidence * 100)}% ·{' '}
                   {assessment
                     ? `condition ${Math.round(conditionConfidence * 100)}% from photos`
@@ -846,7 +843,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                     <h2 className="font-semibold">{option.name}</h2>
                     <p className="text-xl font-bold text-leaf">
                       {formatMoney(option.totalCents)}
-                      <span className="ml-1 text-xs font-normal text-bark/50">
+                      <span className="ml-1 text-xs font-normal text-muted">
                         {BUSINESS.gstRegistered ? 'inc GST' : ''}
                       </span>
                     </p>
@@ -854,14 +851,14 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                   <table className="mt-3 w-full text-sm">
                     <tbody>
                       {option.items.map((item, index) => (
-                        <tr key={index} className="border-t border-black/5">
+                        <tr key={index} className="border-t border-line">
                           <td className="py-1.5 pr-2">{item.description}</td>
-                          <td className="py-1.5 pr-2 text-right text-bark/50">
+                          <td className="py-1.5 pr-2 text-right text-muted">
                             {item.quantity === null
                               ? '—'
                               : formatQuantity(item.quantity, item.unit)}
                           </td>
-                          <td className="py-1.5 pr-2 text-right text-bark/50">
+                          <td className="py-1.5 pr-2 text-right text-muted">
                             {item.minutes > 0 ? formatMinutes(item.minutes) : '—'}
                           </td>
                           <td className="py-1.5 text-right tabular-nums">
@@ -869,8 +866,8 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                           </td>
                         </tr>
                       ))}
-                      <tr className="border-t border-black/20">
-                        <td className="py-1.5 text-bark/50" colSpan={3}>
+                      <tr className="border-t border-line">
+                        <td className="py-1.5 text-muted" colSpan={3}>
                           Subtotal ex GST
                           {option.minimumChargeApplied && ' (minimum charge)'}
                         </td>
@@ -880,7 +877,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                       </tr>
                       {BUSINESS.gstRegistered && (
                         <tr>
-                          <td className="py-1.5 text-bark/50" colSpan={3}>GST 10%</td>
+                          <td className="py-1.5 text-muted" colSpan={3}>GST 10%</td>
                           <td className="py-1.5 text-right tabular-nums">
                             {formatMoney(option.gstCents)}
                           </td>
@@ -888,7 +885,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                       )}
                     </tbody>
                   </table>
-                  <p className="mt-3 text-xs text-bark/50">
+                  <p className="mt-3 text-xs text-muted">
                     {formatMinutes(option.totalMinutes)} on site · range{' '}
                     {formatMoney(option.bandLowCents)} – {formatMoney(option.bandHighCents)}
                   </p>
@@ -896,7 +893,7 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
               ))}
 
               <div className={card}>
-                <p className="text-xs text-bark/50">
+                <p className="text-xs text-muted">
                   {quote.reference} · valid until {formatBusinessDate(quote.validUntil)}
                 </p>
                 <button
@@ -908,13 +905,13 @@ export function QuoteForm({ quoteFor }: { quoteFor?: QuoteFor }) {
                   {downloading ? 'Building PDF…' : 'Download quote PDF'}
                 </button>
                 {!ready && (
-                  <p className="mt-2 text-xs text-bark/45">Needs a customer name.</p>
+                  <p className="mt-2 text-xs text-faint">Needs a customer name.</p>
                 )}
                 {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
                 {/* The quote stops being a PDF and starts being work. */}
                 {lookup && (
-                  <div className="mt-4 border-t border-black/10 pt-4">
+                  <div className="mt-4 border-t border-line pt-4">
                     <p className={legend}>Keep it</p>
                     <SaveQuote
                       customerId={quoteFor?.id}

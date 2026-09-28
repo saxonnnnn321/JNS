@@ -16,11 +16,8 @@ import {
   updateJob,
   type JobResult,
 } from '@/app/jobs/actions';
+import { btnPrimary as primary, input } from '@/components/ui';
 
-const input =
-  'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
-const primary =
-  'rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90 disabled:cursor-not-allowed disabled:bg-bark/20';
 
 type Result = FormResult | JobResult;
 
@@ -192,7 +189,7 @@ export function PlanForm({
 
   if (properties.length === 0) {
     return (
-      <p className="text-sm text-bark/60">
+      <p className="text-sm text-muted">
         Add an address first — a plan has to be for somewhere.
       </p>
     );
@@ -260,7 +257,7 @@ export function PlanForm({
             className={input}
             defaultValue={plan?.anchorDate ?? today}
           />
-          <span className="mt-1 block text-xs text-bark/45">
+          <span className="mt-1 block text-xs text-faint">
             Fixes the weekday every later visit lands on.
           </span>
         </label>
@@ -296,7 +293,7 @@ export function PlanForm({
                 className={input}
                 defaultValue={plan.pausedUntil ?? ''}
               />
-              <span className="mt-1 block text-xs text-bark/45">
+              <span className="mt-1 block text-xs text-faint">
                 For winter, or a holiday. Leave empty for none.
               </span>
             </label>
@@ -371,7 +368,7 @@ export function JobForm({
           <option value="fixed">Fixed price — you quoted it</option>
           <option value="costPlus">Cost plus — hours and materials as they go</option>
         </select>
-        <span className="mt-1 block text-xs text-bark/45">
+        <span className="mt-1 block text-xs text-faint">
           {pricing === 'costPlus'
             ? 'Worked out from hours logged to this job and receipts filed against it. The total moves as the job runs.'
             : 'The price is the price, whatever the job ends up taking.'}
@@ -422,7 +419,7 @@ export function JobForm({
                 defaultValue={job ? (job.materialsCents / 100).toFixed(2) : ''}
                 placeholder="$0"
               />
-              <span className="mt-1 block text-xs text-bark/45">
+              <span className="mt-1 block text-xs text-faint">
                 Billed as its own line, so they can see the split.
               </span>
             </label>
@@ -453,7 +450,7 @@ export function JobForm({
                 }
                 placeholder="15"
               />
-              <span className="mt-1 block text-xs text-bark/45">
+              <span className="mt-1 block text-xs text-faint">
                 Percent. Covers your time buying and carting it. 0 is fine.
               </span>
             </label>
@@ -472,7 +469,7 @@ export function JobForm({
             <option value="done">Finished</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <span className="mt-1 block text-xs text-bark/45">
+          <span className="mt-1 block text-xs text-faint">
             Only a finished job can be invoiced.
           </span>
         </label>
@@ -493,7 +490,7 @@ export function JobForm({
             className={input}
             defaultValue={job?.completedOn ?? ''}
           />
-          <span className="mt-1 block text-xs text-bark/45">
+          <span className="mt-1 block text-xs text-faint">
             Left empty on a finished job, today is used.
           </span>
         </label>
@@ -573,7 +570,7 @@ export function ExtraForm({
       <button type="submit" className={`${primary} mt-3`} disabled={pending}>
         {pending ? 'Saving…' : 'Add line'}
       </button>
-      <p className="mt-2 text-xs text-bark/45">
+      <p className="mt-2 text-xs text-faint">
         Goes on their next invoice. A minus sign makes it a discount.
       </p>
       <Message result={result} />
@@ -633,7 +630,7 @@ export function ClaimForm({
       <button type="submit" className={`${primary} mt-3`} disabled={pending}>
         {pending ? 'Saving…' : 'Add progress claim'}
       </button>
-      <p className="mt-2 text-xs text-bark/45">
+      <p className="mt-2 text-xs text-faint">
         {remainingLabel} left unclaimed. It goes on their next invoice, and the
         final bill is whatever is still owing.
       </p>

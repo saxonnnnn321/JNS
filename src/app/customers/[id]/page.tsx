@@ -1,6 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { card, legend, FrequencyTag } from '@/components/ui';
+import {
+  btnGo,
+  btnDanger,
+  btnSecondary,
+  btnSmall,
+  card,
+  legend,
+  FrequencyTag,
+  PageHeader,
+  StatusTag,
+  Tag,
+} from '@/components/ui';
 import { formatMinutes, formatMoney } from '@/lib/format';
 import { addDays, formatBusinessDate } from '@/lib/dates';
 import {
@@ -46,14 +57,6 @@ import {
 } from './forms';
 
 export const dynamic = 'force-dynamic';
-
-const JOB_STATUS: Record<string, { label: string; style: string }> = {
-  quoted: { label: 'Quoted', style: 'bg-bark/10 text-bark/60' },
-  scheduled: { label: 'Booked in', style: 'bg-leaf-soft text-leaf' },
-  in_progress: { label: 'Started', style: 'bg-amber-100 text-amber-900' },
-  done: { label: 'Finished', style: 'bg-leaf text-white' },
-  cancelled: { label: 'Cancelled', style: 'bg-bark/10 text-bark/40' },
-};
 
 export default async function CustomerPage({
   params,
@@ -120,29 +123,56 @@ export default async function CustomerPage({
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
-      <Link href="/customers" className="text-sm text-bark/50 hover:text-bark">
+      <Link href="/customers" className="text-sm text-muted hover:text-bark">
         ← Customers
       </Link>
 
-      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-bold">{customer.name}</h1>
-        <div className="text-right text-sm">
-          <span className="font-semibold text-leaf">
-            {formatMoney(weeklyRecurringCents(plans))}/wk
-          </span>
-          {jobsPipeline > 0 && (
-            <span className="text-bark/50">
-              {' '}
-              · {formatMoney(jobsPipeline)} in jobs
-            </span>
-          )}
-        </div>
+      <div className="mt-2">
+        <PageHeader
+          title={customer.name}
+          sub={
+            <>
+              {/* Tappable on a phone: you are usually looking at this to ring
+                  them from the driveway. */}
+              {customer.phone ? (
+                <a href={`tel:${customer.phone}`} className="font-medium text-leaf hover:underline">
+                  {customer.phone}
+                </a>
+              ) : null}
+              {customer.phone && customer.email ? ' · ' : null}
+              {customer.email ? (
+                <a href={`mailto:${customer.email}`} className="hover:underline">
+                  {customer.email}
+                </a>
+              ) : null}
+              {!customer.phone && !customer.email ? 'No contact details' : null}
+              {' · since '}
+              {formatBusinessDate(customer.since)}
+            </>
+          }
+          aside={
+            <div className="flex gap-3 text-right">
+              {weeklyRecurringCents(plans) > 0 && (
+                <div>
+                  <p className={legend}>On the round</p>
+                  <p className="tnum font-display text-2xl font-extrabold text-leaf">
+                    {formatMoney(weeklyRecurringCents(plans))}
+                    <span className="text-sm font-bold text-faint">/wk</span>
+                  </p>
+                </div>
+              )}
+              {jobsPipeline > 0 && (
+                <div>
+                  <p className={legend}>In jobs</p>
+                  <p className="tnum font-display text-2xl font-extrabold text-clay">
+                    {formatMoney(jobsPipeline)}
+                  </p>
+                </div>
+              )}
+            </div>
+          }
+        />
       </div>
-      <p className="mt-1 text-sm text-bark/60">
-        {[customer.phone, customer.email].filter(Boolean).join(' · ') ||
-          'No contact details'}{' '}
-        · since {formatBusinessDate(customer.since)}
-      </p>
 
       {/* Two kinds of quote, and they are genuinely different tools, so both
           doors are here and both say which is which. Their details and
@@ -150,19 +180,19 @@ export default async function CustomerPage({
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
           href={`/quotes/new?customer=${customer.id}`}
-          className="rounded-lg border border-leaf px-4 py-2 text-sm font-medium text-leaf hover:bg-leaf-soft"
+          className="flex-1 rounded-xl border border-leaf-line bg-leaf-soft/60 px-4 py-3 text-sm font-bold text-leaf transition hover:border-leaf hover:bg-leaf-soft sm:flex-none"
         >
-          Quote a mow
-          <span className="block text-xs font-normal text-bark/50">
+          🌱 Quote a mow
+          <span className="mt-0.5 block text-xs font-medium text-muted">
             Measures the block, prices the round
           </span>
         </Link>
         <a
           href="#jobs"
-          className="rounded-lg border border-leaf px-4 py-2 text-sm font-medium text-leaf hover:bg-leaf-soft"
+          className="flex-1 rounded-xl border border-clay-line bg-clay-soft/60 px-4 py-3 text-sm font-bold text-clay transition hover:border-clay hover:bg-clay-soft sm:flex-none"
         >
-          Quote a job
-          <span className="block text-xs font-normal text-bark/50">
+          🧱 Quote a job
+          <span className="mt-0.5 block text-xs font-medium text-muted">
             Construction, cleanups, cost plus
           </span>
         </a>
@@ -188,16 +218,23 @@ export default async function CustomerPage({
       )}
 
       {/* ---------- invoicing ---------- */}
-      <section className={`${card} mt-5`}>
+      <section
+        className={`${card} mt-5 ${
+          unbilledCount > 0 ? 'border-hivis/70 bg-hivis-soft/50' : ''
+        }`}
+      >
         <p className={legend}>Invoicing</p>
         {unbilledCount === 0 ? (
-          <p className="mt-2 text-sm text-bark/60">
+          <p className="mt-2 text-sm text-muted">
             Nothing waiting to be billed.
           </p>
         ) : (
           <>
-            <p className="mt-2 text-sm">
-              <b>{formatMoney(unbilledCents)}</b> ready to invoice —{' '}
+            <p className="tnum mt-1 font-display text-3xl font-extrabold text-ink">
+              {formatMoney(unbilledCents)}
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              ready to invoice —{' '}
               {[
                 unbilledVisits.length && `${unbilledVisits.length} visit${unbilledVisits.length === 1 ? '' : 's'}`,
                 unbilledJobs.length && `${unbilledJobs.length} job${unbilledJobs.length === 1 ? '' : 's'}`,
@@ -210,14 +247,11 @@ export default async function CustomerPage({
             </p>
             <form action={invoiceCustomer} className="mt-3">
               <input type="hidden" name="customerId" value={customer.id} />
-              <button
-                type="submit"
-                className="rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90"
-              >
+              <button type="submit" className={btnGo}>
                 Invoice for work done
               </button>
             </form>
-            <p className="mt-2 text-xs text-bark/45">
+            <p className="mt-2 text-xs text-muted">
               Makes a draft you read before anything is sent.
             </p>
           </>
@@ -238,7 +272,7 @@ export default async function CustomerPage({
       <section className="mt-6">
         <h2 className={legend}>Addresses</h2>
         {properties.length === 0 ? (
-          <p className={`${card} mt-2 text-sm text-bark/50`}>
+          <p className={`${card} mt-2 text-sm text-muted`}>
             No address on file. Add one below — plans and jobs hang off it.
           </p>
         ) : (
@@ -248,9 +282,9 @@ export default async function CustomerPage({
                 <details>
                   <summary className="cursor-pointer">
                     <span className="font-medium">{property.addressLine}</span>
-                    <span className="text-bark/60">, {property.suburb}</span>
+                    <span className="text-muted">, {property.suburb}</span>
                     {property.lawnAreaM2 ? (
-                      <span className="ml-2 text-xs text-bark/45">
+                      <span className="ml-2 text-xs text-faint">
                         lawn {property.lawnAreaM2} m²
                       </span>
                     ) : null}
@@ -260,7 +294,7 @@ export default async function CustomerPage({
                       </span>
                     )}
                   </summary>
-                  <div className="mt-3 border-t border-black/5 pt-3">
+                  <div className="mt-3 border-t border-line pt-3">
                     <PropertyForm
                       customerId={customer.id}
                       property={{
@@ -278,7 +312,7 @@ export default async function CustomerPage({
                       <input type="hidden" name="customerId" value={customer.id} />
                       <button
                         type="submit"
-                        className="text-xs text-bark/40 hover:text-red-600"
+                        className="text-xs text-faint hover:text-red-600"
                       >
                         Remove this address
                       </button>
@@ -298,7 +332,7 @@ export default async function CustomerPage({
       <section className="mt-6">
         <h2 className={legend}>On the round</h2>
         {plans.length === 0 ? (
-          <p className={`${card} mt-2 text-sm text-bark/50`}>
+          <p className={`${card} mt-2 text-sm text-muted`}>
             Not on the round. That is fine for one-off and construction work —
             add a plan below if they want regular visits.
           </p>
@@ -316,12 +350,12 @@ export default async function CustomerPage({
                         <span className="font-medium">
                           {property?.addressLine ?? 'Unknown address'}
                         </span>
-                        <span className="text-bark/60">
+                        <span className="text-muted">
                           {formatMoney(plan.priceCents)} ·{' '}
                           {formatMinutes(plan.estimatedMinutes)}
                         </span>
                         {!plan.active && (
-                          <span className="rounded-full bg-bark/10 px-2 py-0.5 text-[11px] text-bark/50">
+                          <span className="rounded-full bg-ink/6 px-2 py-0.5 text-[11px] text-muted">
                             stopped
                           </span>
                         )}
@@ -331,11 +365,11 @@ export default async function CustomerPage({
                           </span>
                         )}
                       </span>
-                      <span className="mt-1 block text-xs text-bark/45">
+                      <span className="mt-1 block text-xs text-faint">
                         {next ? `Next due ${formatBusinessDate(next)}` : 'Nothing due'}
                       </span>
                     </summary>
-                    <div className="mt-3 border-t border-black/5 pt-3">
+                    <div className="mt-3 border-t border-line pt-3">
                       <PlanForm
                         customerId={customer.id}
                         properties={propertyOptions}
@@ -358,7 +392,7 @@ export default async function CustomerPage({
                         <input type="hidden" name="customerId" value={customer.id} />
                         <button
                           type="submit"
-                          className="text-xs text-bark/40 hover:text-red-600"
+                          className="text-xs text-faint hover:text-red-600"
                         >
                           Remove this plan
                         </button>
@@ -382,44 +416,34 @@ export default async function CustomerPage({
       {/* ---------- one-off jobs ---------- */}
       <section id="jobs" className="mt-6 scroll-mt-4">
         <h2 className={legend}>Jobs</h2>
-        <p className="mt-1 text-xs text-bark/45">
+        <p className="mt-1 text-xs text-faint">
           Construction, cleanups, anything that happens once — at a price you
           quoted or at cost plus. Add one, and the quote to send them is on it.
           Mark it finished and it becomes invoiceable.
         </p>
         {jobs.length === 0 ? (
-          <p className={`${card} mt-2 text-sm text-bark/50`}>No jobs yet.</p>
+          <p className={`${card} mt-2 text-sm text-muted`}>No jobs yet.</p>
         ) : (
           <ul className="mt-2 space-y-2">
             {jobs.map((job) => {
-              const status = JOB_STATUS[job.status] ?? {
-                label: job.status,
-                style: 'bg-bark/10',
-              };
               return (
                 <li key={job.id} className={`${card} text-sm`}>
                   <details>
                     <summary className="cursor-pointer">
                       <span className="flex flex-wrap items-baseline gap-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${status.style}`}
-                        >
-                          {status.label}
-                        </span>
+                        <StatusTag status={job.status} of="job" />
                         <span className="font-medium">{job.title}</span>
-                        <span className="text-bark/60">
+                        <span className="text-muted">
                           {formatMoney(valueOf(job, actuals).totalCents)}
                         </span>
                         {job.pricing === 'costPlus' && (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-900">
-                            cost plus
-                          </span>
+                          <Tag tone="clay">cost plus</Tag>
                         )}
                         {job.invoiceId && (
-                          <span className="text-[11px] text-bark/40">invoiced</span>
+                          <span className="text-[11px] text-faint">invoiced</span>
                         )}
                       </span>
-                      <span className="mt-1 block text-xs text-bark/45">
+                      <span className="mt-1 block text-xs text-faint">
                         {labelFor(job.propertyId) ?? 'No address'}
                         {job.scheduledFor &&
                           ` · booked ${formatBusinessDate(job.scheduledFor)}`}
@@ -427,9 +451,9 @@ export default async function CustomerPage({
                           ` · finished ${formatBusinessDate(job.completedOn)}`}
                       </span>
                     </summary>
-                    <div className="mt-3 border-t border-black/5 pt-3">
+                    <div className="mt-3 border-t border-line pt-3">
                       {job.invoiceId ? (
-                        <p className="text-xs text-bark/50">
+                        <p className="text-xs text-muted">
                           This job has been invoiced, so it is locked. Cancel
                           the invoice to change it.
                         </p>
@@ -476,7 +500,7 @@ export default async function CustomerPage({
                             <input type="hidden" name="customerId" value={customer.id} />
                             <button
                               type="submit"
-                              className="text-xs text-bark/40 hover:text-red-600"
+                              className="text-xs text-faint hover:text-red-600"
                             >
                               Delete this job
                             </button>
@@ -505,7 +529,7 @@ export default async function CustomerPage({
                 key={extra.id}
                 className={`${card} flex flex-wrap items-baseline gap-x-3 py-2 text-sm`}
               >
-                <span className="w-28 shrink-0 text-bark/50">
+                <span className="w-28 shrink-0 text-muted">
                   {formatBusinessDate(extra.incurredOn)}
                 </span>
                 <span className="min-w-0 flex-1">{extra.description}</span>
@@ -515,7 +539,7 @@ export default async function CustomerPage({
                   {formatMoney(extra.amountCents)}
                 </span>
                 {extra.invoiceId ? (
-                  <span className="text-[11px] text-bark/40">invoiced</span>
+                  <span className="text-[11px] text-faint">invoiced</span>
                 ) : (
                   <form action={removeExtra}>
                     <input type="hidden" name="id" value={extra.id} />
@@ -523,7 +547,7 @@ export default async function CustomerPage({
                     <button
                       type="submit"
                       aria-label="Remove"
-                      className="px-1 text-bark/30 hover:text-red-600"
+                      className="px-1 text-faint hover:text-red-600"
                     >
                       ×
                     </button>
@@ -542,7 +566,7 @@ export default async function CustomerPage({
       {receipts.length > 0 && (
         <section className="mt-6">
           <h2 className={legend}>Receipts</h2>
-          <p className="mt-1 text-xs text-bark/45">
+          <p className="mt-1 text-xs text-faint">
             What was bought for this customer. The charged-back ones already
             appear above as extra charges.
           </p>
@@ -555,14 +579,14 @@ export default async function CustomerPage({
                     <img
                       src={receipt.photoUrl}
                       alt={`Receipt from ${receipt.supplier ?? 'a supplier'}`}
-                      className="h-32 w-28 rounded-lg border border-black/10 object-cover hover:border-leaf"
+                      className="h-32 w-28 rounded-lg border border-line object-cover hover:border-leaf"
                     />
                   </a>
                 )}
                 <p className="mt-1 text-xs font-medium">
                   {formatMoney(receipt.amountCents)}
                 </p>
-                <p className="truncate text-[11px] text-bark/50">
+                <p className="truncate text-[11px] text-muted">
                   {receipt.supplier ?? 'Receipt'}
                 </p>
               </li>
@@ -575,7 +599,7 @@ export default async function CustomerPage({
       <section className="mt-6">
         <h2 className={legend}>Visit history</h2>
         {accuracy && (
-          <p className="mt-1 text-xs text-bark/50">
+          <p className="mt-1 text-xs text-muted">
             {accuracy.visits} timed visits, running{' '}
             {accuracy.ratio >= 1
               ? `${Math.round((accuracy.ratio - 1) * 100)}% over`
@@ -584,7 +608,7 @@ export default async function CustomerPage({
           </p>
         )}
         {history.length === 0 ? (
-          <p className={`${card} mt-2 text-sm text-bark/50`}>
+          <p className={`${card} mt-2 text-sm text-muted`}>
             No visits recorded yet. Tick jobs off the run sheet as you do them.
           </p>
         ) : (
@@ -610,12 +634,12 @@ export default async function CustomerPage({
                       ? visit.actualMinutes - plan.estimatedMinutes
                       : null;
                   return (
-                    <tr key={visit.id} className="border-t border-black/5">
+                    <tr key={visit.id} className="border-t border-line">
                       <td className="py-1.5">{formatBusinessDate(visit.date)}</td>
-                      <td className="py-1.5 text-bark/60">
+                      <td className="py-1.5 text-muted">
                         {property?.addressLine ?? '—'}
                       </td>
-                      <td className="py-1.5 text-right text-bark/50">
+                      <td className="py-1.5 text-right text-muted">
                         {plan ? formatMinutes(plan.estimatedMinutes) : '—'}
                       </td>
                       <td className="py-1.5 text-right">
@@ -634,7 +658,7 @@ export default async function CustomerPage({
                           '—'
                         )}
                       </td>
-                      <td className="py-1.5 text-right text-bark/50">
+                      <td className="py-1.5 text-right text-muted">
                         {visit.invoiceId ? '✓' : visit.status === 'done' ? 'Not yet' : '—'}
                       </td>
                     </tr>
@@ -647,11 +671,11 @@ export default async function CustomerPage({
       </section>
 
       <details className="mt-8">
-        <summary className="cursor-pointer text-sm text-bark/45 hover:text-bark">
+        <summary className="cursor-pointer text-sm text-faint hover:text-bark">
           Remove this customer
         </summary>
         <div className={`${card} mt-2 border-red-200`}>
-          <p className="text-sm text-bark/70">
+          <p className="text-sm text-ink">
             Deletes {customer.name}, their {properties.length} address
             {properties.length === 1 ? '' : 'es'}, {plans.length} plan
             {plans.length === 1 ? '' : 's'}, {jobs.length} job
@@ -717,7 +741,7 @@ function JobClaims({
       </p>
 
       {value.isCostPlus && (
-        <p className="mt-2 text-xs text-bark/70">
+        <p className="mt-2 text-xs text-ink">
           {(actuals.get(job.id)?.minutesWorked ?? 0) / 60 > 0
             ? `${((actuals.get(job.id)?.minutesWorked ?? 0) / 60).toFixed(1)} hours`
             : 'No hours yet'}{' '}
@@ -744,7 +768,7 @@ function JobClaims({
         <span>
           Claimed <b>{formatMoney(ledger.claimedCents)}</b>
         </span>
-        <span className={ledger.remainingCents === 0 ? 'text-bark/45' : 'text-leaf'}>
+        <span className={ledger.remainingCents === 0 ? 'text-faint' : 'text-leaf'}>
           Still to bill <b>{formatMoney(ledger.remainingCents)}</b>
         </span>
       </div>
@@ -760,13 +784,13 @@ function JobClaims({
         <ul className="mt-2 space-y-1 text-xs">
           {claims.map((claim) => (
             <li key={claim.id} className="flex items-baseline gap-2">
-              <span className="w-24 shrink-0 text-bark/50">
+              <span className="w-24 shrink-0 text-muted">
                 {formatBusinessDate(claim.claimedOn)}
               </span>
               <span className="min-w-0 flex-1">{claim.description}</span>
               <span className="font-medium">{formatMoney(claim.amountCents)}</span>
               {claim.invoiceId ? (
-                <span className="text-bark/40">invoiced</span>
+                <span className="text-faint">invoiced</span>
               ) : (
                 <>
                   <span className="text-leaf">on next invoice</span>
@@ -776,7 +800,7 @@ function JobClaims({
                     <button
                       type="submit"
                       aria-label="Remove claim"
-                      className="px-1 text-bark/30 hover:text-red-600"
+                      className="px-1 text-faint hover:text-red-600"
                     >
                       ×
                     </button>
@@ -789,7 +813,7 @@ function JobClaims({
       )}
 
       {value.isCostPlus && (
-        <p className="mt-2 text-xs text-bark/45">
+        <p className="mt-2 text-xs text-faint">
           This figure moves as hours are logged and receipts filed against the
           job. Log hours to it on the{' '}
           <Link href="/timesheet" className="text-leaf hover:underline">
@@ -805,7 +829,7 @@ function JobClaims({
       )}
 
       {ledger.remainingCents > 0 ? (
-        <div className="mt-3 border-t border-black/5 pt-3">
+        <div className="mt-3 border-t border-line pt-3">
           <ClaimForm
             jobId={job.id}
             customerId={customerId}
@@ -817,7 +841,7 @@ function JobClaims({
         /* Saying why the form is not here. A cost-plus job with nothing
            logged has nothing to bill yet, which is not the same as being
            fully claimed. */
-        <p className="mt-3 border-t border-black/5 pt-3 text-xs text-bark/50">
+        <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
           {value.isCostPlus && value.totalCents === 0
             ? 'Nothing to bill in stages yet — log the hours or file the receipts against this job first.'
             : 'Every dollar of this job has been claimed already.'}

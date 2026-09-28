@@ -1,15 +1,125 @@
 @import 'tailwindcss';
 
+/**
+ * The look of the thing.
+ *
+ * Two rules decide every colour here, and they are not decoration:
+ *
+ *   1. It gets read on a phone, outdoors, in NSW sun, often through a smeared
+ *      screen with dirty hands. So the muted greys are named tones with real
+ *      contrast rather than the ink at 45% opacity, which looked fine on a
+ *      desk and vanished in daylight.
+ *
+ *   2. The business is two things now — mowing and construction — so it gets
+ *      two accents. Leaf green for the round, clay for the building work, and
+ *      hi-vis yellow for the thing you are meant to press.
+ */
+
 @theme {
-  --color-bark: #1f2a21;
-  --color-leaf: #2f5d3a;
-  --color-leaf-soft: #eaf1ec;
+  /* ---- type ---------------------------------------------------------- */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-outfit), var(--font-inter), ui-sans-serif, sans-serif;
+
+  /* ---- ink ----------------------------------------------------------- */
+  /* Three tones, not seven opacities. muted and faint both clear 4.5:1 on
+     the page background, which the old bark/45 and bark/50 did not. */
+  --color-ink: #16201b;
+  --color-muted: #566058;
+  --color-faint: #717b73;
+
+  /* `bark` is the original ink and is still all over the app. Kept as an
+     alias so nothing had to be rewritten to change the palette. */
+  --color-bark: #16201b;
+
+  /* ---- leaf: the round ----------------------------------------------- */
+  --color-leaf: #2b5636;
+  --color-leaf-deep: #1a3a22;
+  --color-leaf-bright: #3d7d4d;
+  --color-leaf-soft: #e7f0e9;
+  --color-leaf-line: #bcd4c2;
+
+  /* ---- hi-vis: press this -------------------------------------------- */
+  /* Yellow can't carry white text, so it is always a fill under dark ink.
+     That is also exactly how it works on a real vest. */
+  --color-hivis: #ffd21e;
+  --color-hivis-bright: #ffe066;
+  --color-hivis-soft: #fff7d6;
+  --color-hivis-ink: #6b4e00;
+
+  /* ---- clay: the construction side ----------------------------------- */
+  --color-clay: #a04a24;
+  --color-clay-soft: #fbeae2;
+  --color-clay-line: #edc9b7;
+
+  /* ---- sky: for information ------------------------------------------ */
+  --color-sky: #2a6796;
+  --color-sky-soft: #e8f1f8;
+
+  /* ---- surfaces ------------------------------------------------------ */
+  --color-page: #f4f6f3;
+  --color-surface: #ffffff;
+  --color-line: #dfe4df;
 }
 
 html {
   color-scheme: light;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: #f6f7f5;
+  background-color: var(--color-page);
+  /* A whisper of texture so a screen of white cards is not a blank sheet.
+     Two very soft washes, one leaf, one warm, pinned to the top corners. */
+  background-image:
+    radial-gradient(
+      60rem 30rem at 0% -10%,
+      color-mix(in oklab, var(--color-leaf) 9%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50rem 25rem at 100% -5%,
+      color-mix(in oklab, var(--color-hivis) 14%, transparent),
+      transparent 70%
+    );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* Headings get the display face and are set tight — a heading that wraps on a
+   phone should still read as one thing. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/**
+ * Money and times line up in columns.
+ *
+ * Proportional digits make a column of dollar figures ragged and genuinely
+ * harder to compare, which matters on a page whose whole job is money.
+ */
+.tnum,
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* One visible focus ring everywhere, for the keyboard and for accessibility.
+   The default ring is nearly invisible against the leaf buttons. */
+*:focus-visible {
+  outline: 2px solid var(--color-leaf-bright);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* Honour the setting. The tick-off confirmation and the mic pulse both animate. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

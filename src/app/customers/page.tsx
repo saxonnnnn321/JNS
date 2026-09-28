@@ -1,5 +1,15 @@
 import Link from 'next/link';
-import { card, FrequencyTag } from '@/components/ui';
+import {
+  btnPrimary,
+  btnSecondary,
+  card,
+  cardLink,
+  EmptyState,
+  FrequencyTag,
+  input as inputClass,
+  legend,
+  PageHeader,
+} from '@/components/ui';
 import { formatMoney } from '@/lib/format';
 import { formatBusinessDate } from '@/lib/dates';
 import { dueDates, today, weeklyRecurringCents } from '@/lib/crm/schedule';
@@ -11,9 +21,6 @@ import { lapse, matchesSearch, tightestCycle } from '@/lib/crm/directory';
 // time — a statically generated run sheet would freeze on the build date and
 // quietly show the wrong jobs forever.
 export const dynamic = 'force-dynamic';
-
-const searchInput =
-  'w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
 
 /**
  * The customer list.
@@ -87,23 +94,27 @@ export default async function CustomersPage({
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-bold">Customers</h1>
-        <div className="flex items-baseline gap-4">
-          <p className="text-sm text-bark/50">
-            {rows.length}
-            {filtered ? ` of ${customers.length}` : ''} customer
-            {customers.length === 1 ? '' : 's'} · {formatMoney(total)}/week
-            recurring
-          </p>
-          <Link
-            href="/customers/new"
-            className="rounded-lg bg-leaf px-4 py-2 text-sm font-medium text-white hover:bg-leaf/90"
-          >
-            + Add
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Customers"
+        sub={`${rows.length}${filtered ? ` of ${customers.length}` : ''} customer${
+          customers.length === 1 ? '' : 's'
+        }`}
+        aside={
+          total > 0 && (
+            <div className="text-right">
+              <p className={legend}>Recurring</p>
+              <p className="tnum font-display text-2xl font-extrabold text-leaf">
+                {formatMoney(total)}
+                <span className="text-sm font-bold text-faint">/wk</span>
+              </p>
+            </div>
+          )
+        }
+      >
+        <Link href="/customers/new" className={btnPrimary}>
+          + Add
+        </Link>
+      </PageHeader>
 
       {customers.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -112,14 +123,11 @@ export default async function CustomersPage({
             <input
               name="q"
               defaultValue={query}
-              className={searchInput}
+              className={`${inputClass} mt-0`}
               placeholder="Name, street, suburb or phone"
               aria-label="Search customers"
             />
-            <button
-              type="submit"
-              className="shrink-0 rounded-lg border border-leaf px-4 text-sm font-medium text-leaf hover:bg-leaf-soft"
-            >
+            <button type="submit" className={`${btnSecondary} shrink-0 px-4`}>
               Search
             </button>
           </form>
@@ -140,19 +148,17 @@ export default async function CustomersPage({
       )}
 
       {customers.length === 0 && (
-        <div className={`${card} mt-5`}>
-          <p className="font-semibold">No customers yet.</p>
-          <p className="mt-1 text-sm text-bark/60">
-            Add one and it shows up here, on the round, and on today&rsquo;s run
-            sheet. You can measure the block while you are at it.
-          </p>
-          <Link
-            href="/customers/new"
-            className="mt-3 inline-block rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90"
-          >
-            Add your first customer
-          </Link>
-        </div>
+        <EmptyState
+          title="No customers yet."
+          action={
+            <Link href="/customers/new" className={btnPrimary}>
+              Add your first customer
+            </Link>
+          }
+        >
+          Add one and it shows up here, on the round, and on today&rsquo;s run
+          sheet. You can measure the block while you are at it.
+        </EmptyState>
       )}
 
       {customers.length > 0 && rows.length === 0 && (
@@ -169,20 +175,27 @@ export default async function CustomersPage({
           <Link
             key={customer.id}
             href={`/customers/${customer.id}`}
-            className={`${card} block hover:border-leaf/40 ${
-              gone.lapsed ? 'border-amber-300' : ''
+            className={`${cardLink} ${
+              gone.lapsed ? 'border-amber-300 bg-amber-50/40' : ''
             }`}
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-semibold">{customer.name}</span>
-              <span className="text-sm font-semibold text-leaf">
-                {perWeek > 0 ? `${formatMoney(perWeek)}/wk` : '—'}
+              <span className="tnum font-display font-extrabold text-leaf">
+                {perWeek > 0 ? (
+                  <>
+                    {formatMoney(perWeek)}
+                    <span className="text-xs font-bold text-faint">/wk</span>
+                  </>
+                ) : (
+                  <span className="text-faint">—</span>
+                )}
               </span>
             </div>
-            <p className="mt-0.5 text-sm text-bark/60">
+            <p className="mt-0.5 text-sm text-muted">
               {properties.map((p) => `${p.addressLine}, ${p.suburb}`).join(' · ')}
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-bark/50">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
               {plans.map((plan) => (
                 <FrequencyTag key={plan.id} frequency={plan.frequency} />
               ))}
@@ -199,7 +212,7 @@ export default async function CustomersPage({
               </p>
             )}
             {customer.notes && (
-              <p className="mt-1 text-xs text-bark/45">{customer.notes}</p>
+              <p className="mt-1 text-xs text-faint">{customer.notes}</p>
             )}
           </Link>
         ))}

@@ -3,9 +3,8 @@
 import { useActionState, useEffect, useState } from 'react';
 import { cancelTimer, startTimer, stopTimer, type FormResult } from './actions';
 import { WorkPicker, type WorkOption } from './forms';
+import { input } from '@/components/ui';
 
-const input =
-  'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
 
 /**
  * The clock.
@@ -90,14 +89,14 @@ function RunningClock({
           <button
             type="submit"
             disabled={stopping}
-            className="min-h-12 rounded-lg bg-red-600 px-6 text-sm font-semibold text-white hover:bg-red-700 disabled:bg-bark/20"
+            className="min-h-12 rounded-lg bg-red-600 px-6 text-sm font-semibold text-white hover:bg-red-700 disabled:bg-ink/10"
           >
             {stopping ? 'Stopping…' : 'Stop and log it'}
           </button>
           <button
             type="submit"
             formAction={cancelTimer}
-            className="text-sm text-bark/45 hover:text-bark"
+            className="text-sm text-faint hover:text-bark"
           >
             Throw it away
           </button>
@@ -132,7 +131,7 @@ function IdleClock({ work }: { work: WorkOption[] }) {
       <button
         type="submit"
         disabled={starting}
-        className="mt-3 min-h-12 rounded-lg bg-leaf px-8 text-base font-semibold text-white hover:bg-leaf/90 disabled:bg-bark/20"
+        className="mt-3 min-h-12 rounded-lg bg-leaf px-8 text-base font-semibold text-white hover:bg-leaf/90 disabled:bg-ink/10"
       >
         {starting ? 'Starting…' : 'Start the clock'}
       </button>

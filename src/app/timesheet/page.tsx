@@ -82,7 +82,7 @@ export default async function TimesheetPage({
       {books.notConfigured ? (
         <div className={`${card} mt-5`}>
           <p className="font-semibold">The timesheet is not set up yet.</p>
-          <p className="mt-1 text-sm text-bark/60">
+          <p className="mt-1 text-sm text-muted">
             The tables it needs are not in the database. Run migration 0004 in
             the Supabase SQL editor, then come back.
           </p>
@@ -93,7 +93,7 @@ export default async function TimesheetPage({
           <section className={`${card} mt-5`}>
             <p className={legend}>The clock</p>
             {books.timerUnavailable ? (
-              <p className="mt-2 text-sm text-bark/60">
+              <p className="mt-2 text-sm text-muted">
                 Run migration 0005 in Supabase and the start/stop clock appears
                 here. Until then, log hours by hand below.
               </p>
@@ -103,7 +103,7 @@ export default async function TimesheetPage({
               </div>
             )}
             {othersRunning.map((timer) => (
-              <p key={timer.staffId} className="mt-3 text-xs text-bark/50">
+              <p key={timer.staffId} className="mt-3 text-xs text-muted">
                 {timer.staffName} has a clock running
                 {timer.description ? ` — ${timer.description}` : ''}.
               </p>
@@ -114,16 +114,16 @@ export default async function TimesheetPage({
           <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">
             <Link
               href={`/timesheet?from=${addDays(from, -7)}&to=${addDays(to, -7)}`}
-              className="text-bark/50 hover:text-bark"
+              className="text-muted hover:text-bark"
             >
               ← Previous
             </Link>
-            <span className="text-bark/70">
+            <span className="text-ink">
               {formatBusinessDate(from)} – {formatBusinessDate(to)}
             </span>
             <Link
               href={`/timesheet?from=${addDays(from, 7)}&to=${addDays(to, 7)}`}
-              className="text-bark/50 hover:text-bark"
+              className="text-muted hover:text-bark"
             >
               Next →
             </Link>
@@ -136,7 +136,7 @@ export default async function TimesheetPage({
                 <p className="mt-1 text-2xl font-bold text-leaf">
                   {formatMinutes(partner.minutesWorked)}
                 </p>
-                <p className="text-xs text-bark/50">
+                <p className="text-xs text-muted">
                   drawn {formatMoney(partner.drawnCents)}
                 </p>
               </div>
@@ -146,7 +146,7 @@ export default async function TimesheetPage({
               <p className="mt-1 text-2xl font-bold text-leaf">
                 {formatMoney(books.roundIncomeCents + books.manualIncomeCents)}
               </p>
-              <p className="text-xs text-bark/50">
+              <p className="text-xs text-muted">
                 {formatMoney(books.roundIncomeCents)} round ·{' '}
                 {formatMoney(books.manualIncomeCents)} other
               </p>
@@ -174,7 +174,7 @@ export default async function TimesheetPage({
                 </thead>
                 <tbody>
                   {books.split.partners.map((partner) => (
-                    <tr key={partner.id} className="border-t border-black/5">
+                    <tr key={partner.id} className="border-t border-line">
                       <td className="py-2 font-medium">{partner.name}</td>
                       {days.map((day) => {
                         const minutes = books.entries
@@ -186,7 +186,7 @@ export default async function TimesheetPage({
                           <td
                             key={day}
                             className={`py-2 text-right tabular-nums ${
-                              minutes === 0 ? 'text-bark/25' : ''
+                              minutes === 0 ? 'text-faint' : ''
                             } ${day === date ? 'font-semibold text-leaf' : ''}`}
                           >
                             {minutes === 0 ? '·' : (minutes / 60).toFixed(1)}
@@ -223,7 +223,7 @@ export default async function TimesheetPage({
 
           <section className={`${card} mt-6`}>
             <p className={legend}>Money taken out</p>
-            <p className="mt-1 text-xs text-bark/50">
+            <p className="mt-1 text-xs text-muted">
               Whatever either of you actually took — wages, cash, a transfer.
               This is what the split measures against.
             </p>
@@ -252,7 +252,7 @@ export default async function TimesheetPage({
 
           <section className={`${card} mt-6`}>
             <p className={legend}>Income not on the round</p>
-            <p className="mt-1 text-xs text-bark/50">
+            <p className="mt-1 text-xs text-muted">
               Visits ticked off are counted automatically. This is for cash
               jobs and one-offs that never made it onto a plan.
             </p>
@@ -300,18 +300,18 @@ function HourRows({
     <section className="mt-6">
       <h2 className={legend}>Hours this period</h2>
       {entries.length === 0 ? (
-        <p className={`${card} mt-2 text-sm text-bark/50`}>No hours logged yet.</p>
+        <p className={`${card} mt-2 text-sm text-muted`}>No hours logged yet.</p>
       ) : (
         <ul className="mt-2 space-y-1">
           {entries.map((entry) => (
             <li key={entry.id} className={`${card} py-2 text-sm`}>
               <details>
                 <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="w-28 shrink-0 text-bark/50">
+                  <span className="w-28 shrink-0 text-muted">
                     {formatBusinessDate(entry.workDate)}
                   </span>
                   <span className="font-medium">{entry.staffName}</span>
-                  <span className="min-w-0 flex-1 truncate text-bark/60">
+                  <span className="min-w-0 flex-1 truncate text-muted">
                     {entry.description ?? '—'}
                     {nameOf(entry) && (
                       <span className="ml-2 rounded-full bg-leaf-soft px-2 py-0.5 text-[11px] text-leaf">
@@ -337,7 +337,7 @@ function HourRows({
                   <input type="hidden" name="id" value={entry.id} />
                   <button
                     type="submit"
-                    className="text-xs text-bark/40 hover:text-red-600"
+                    className="text-xs text-faint hover:text-red-600"
                   >
                     Delete this entry
                   </button>
@@ -371,7 +371,7 @@ function Rows({
     <section className="mt-6">
       <h2 className={legend}>{title}</h2>
       {rows.length === 0 ? (
-        <p className={`${card} mt-2 text-sm text-bark/50`}>{empty}</p>
+        <p className={`${card} mt-2 text-sm text-muted`}>{empty}</p>
       ) : (
         <ul className="mt-2 space-y-1">
           {rows.map((row) => (
@@ -379,11 +379,11 @@ function Rows({
               key={row.id}
               className={`${card} flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm`}
             >
-              <span className="w-28 shrink-0 text-bark/50">
+              <span className="w-28 shrink-0 text-muted">
                 {formatBusinessDate(row.date)}
               </span>
               <span className="font-medium">{row.left}</span>
-              <span className="min-w-0 flex-1 truncate text-bark/60">
+              <span className="min-w-0 flex-1 truncate text-muted">
                 {row.middle}
               </span>
               <span className="font-semibold text-leaf">{row.right}</span>
@@ -393,7 +393,7 @@ function Rows({
                 <button
                   type="submit"
                   aria-label="Remove"
-                  className="px-1 text-bark/30 hover:text-red-600"
+                  className="px-1 text-faint hover:text-red-600"
                 >
                   ×
                 </button>

@@ -8,11 +8,8 @@ import {
   updateEntry,
   type FormResult,
 } from './actions';
+import { btnPrimary as primary, input } from '@/components/ui';
 
-const input =
-  'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
-const primary =
-  'rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90 disabled:cursor-not-allowed disabled:bg-bark/20';
 
 export type Person = { id: string; name: string };
 export type WorkOption = { id: string; label: string; kind: 'job' | 'customer' };
@@ -47,7 +44,7 @@ export function WorkPicker({
 
   return (
     <label className="block text-sm">
-      What it was on <span className="text-bark/40">(optional)</span>
+      What it was on <span className="text-faint">(optional)</span>
       <select
         className={input}
         value={choice}
@@ -296,7 +293,7 @@ export function EditEntry({
   );
 
   return (
-    <form action={submit} className="mt-2 w-full border-t border-black/5 pt-2">
+    <form action={submit} className="mt-2 w-full border-t border-line pt-2">
       <input type="hidden" name="id" value={id} />
       <div className="grid gap-2 sm:grid-cols-4">
         <label className="block text-xs">

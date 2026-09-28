@@ -23,7 +23,7 @@ export default async function SchedulePage() {
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold">The round</h1>
-        <p className="text-sm text-bark/50">
+        <p className="text-sm text-muted">
           Next {WEEKS} weeks · {stops.length} visits ·{' '}
           {formatMoney(stops.reduce((t, s) => t + s.plan.priceCents, 0))}
         </p>
@@ -47,7 +47,7 @@ export default async function SchedulePage() {
                   <h2 className={legend}>
                     Week of {formatBusinessDate(monday)}
                   </h2>
-                  <p className="text-xs text-bark/50">
+                  <p className="text-xs text-muted">
                     {formatMinutes(weekMinutes)} · {formatMoney(weekValue)}
                   </p>
                 </div>
@@ -66,7 +66,7 @@ export default async function SchedulePage() {
                         >
                           <p className="text-sm font-semibold">
                             {dayName(day).slice(0, 3)}{' '}
-                            <span className="font-normal text-bark/40">
+                            <span className="font-normal text-faint">
                               {day.slice(8)}/{day.slice(5, 7)}
                             </span>
                             {isToday && (
@@ -77,7 +77,7 @@ export default async function SchedulePage() {
                           </p>
 
                           {dayStops.length === 0 ? (
-                            <p className="mt-2 text-xs text-bark/40">Free</p>
+                            <p className="mt-2 text-xs text-faint">Free</p>
                           ) : (
                             <ul className="mt-2 space-y-2">
                               {dayStops.map((stop) => (
@@ -90,11 +90,11 @@ export default async function SchedulePage() {
                                       {stop.property.suburb}
                                     </span>
                                     <br />
-                                    <span className="text-bark/60">
+                                    <span className="text-muted">
                                       {stop.customer.name}
                                     </span>
                                     <br />
-                                    <span className="text-bark/45">
+                                    <span className="text-faint">
                                       {formatMinutes(stop.plan.estimatedMinutes)} ·{' '}
                                       {formatMoney(stop.plan.priceCents)}
                                     </span>
@@ -116,13 +116,13 @@ export default async function SchedulePage() {
 
       <div className={`${card} mt-8 text-sm`}>
         <p className={legend}>How this works</p>
-        <p className="mt-2 text-bark/70">
+        <p className="mt-2 text-ink">
           Nothing here is stored as individual bookings. Each customer has a
           standing plan — a start date and a cycle — and the visits are worked
           out from that on the fly. Change someone from fortnightly to weekly and
           every future date moves with it, with no re-entry.
         </p>
-        <p className="mt-2 text-xs text-bark/50">
+        <p className="mt-2 text-xs text-muted">
           Only the mowing round is here. Construction and one-off work sits on
           the{' '}
           <Link href="/jobs" className="text-leaf hover:underline">

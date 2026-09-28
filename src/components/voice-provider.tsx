@@ -120,16 +120,18 @@ export function VoiceProvider({
     <VoiceContext.Provider value={context}>
       {children}
 
+      {/* Lifted clear of the phone tab bar, and back down into the corner once
+          that bar is gone on a wide screen. */}
       {!hidden && voice.supported && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-end gap-2 p-4">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-end gap-2 p-4 lg:bottom-0">
           {(voice.listening || heard || result || voice.error) && (
-            <div className="pointer-events-auto max-w-sm rounded-xl border border-black/10 bg-white p-3 text-sm shadow-lg">
+            <div className="pointer-events-auto max-w-sm rounded-xl border border-line bg-white p-3 text-sm shadow-lg">
               {voice.listening && (
                 <p className="text-xs font-semibold uppercase tracking-wider text-leaf">
                   Listening
                 </p>
               )}
-              {heard && <p className="mt-0.5 text-bark/80">“{heard}”</p>}
+              {heard && <p className="mt-0.5 text-ink">“{heard}”</p>}
               {result && (
                 <p
                   className={`mt-1 font-medium ${
@@ -145,7 +147,7 @@ export function VoiceProvider({
                 <p className="mt-1 text-red-600">{voice.error}</p>
               )}
               {!voice.listening && (
-                <p className="mt-1 text-xs text-bark/45">
+                <p className="mt-1 text-xs text-faint">
                   Say a customer, an address to quote, or “show me the
                   schedule”.
                 </p>

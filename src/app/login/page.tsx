@@ -5,9 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { supabaseConfigured } from '@/lib/supabase/env';
 import { BUSINESS } from '@/lib/business';
+import { input } from '@/components/ui';
 
-const input =
-  'mt-1 w-full rounded-lg border border-black/15 px-3 py-2.5 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
 
 function LoginForm() {
   const router = useRouter();
@@ -68,7 +67,7 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={signIn} className="rounded-xl border border-black/10 bg-white p-5">
+    <form onSubmit={signIn} className="rounded-xl border border-line bg-white p-5">
       <label className="block text-sm">
         Email
         <input
@@ -98,7 +97,7 @@ function LoginForm() {
       <button
         type="submit"
         disabled={busy}
-        className="mt-4 w-full rounded-lg bg-leaf px-4 py-3 font-medium text-white hover:bg-leaf/90 disabled:bg-bark/20"
+        className="mt-4 w-full rounded-lg bg-leaf px-4 py-3 font-medium text-white hover:bg-leaf/90 disabled:bg-ink/10"
       >
         {busy ? 'Signing in…' : 'Sign in'}
       </button>
@@ -110,11 +109,11 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4 py-12">
       <h1 className="text-2xl font-bold text-leaf">{BUSINESS.tradingName}</h1>
-      <p className="mt-1 mb-6 text-sm text-bark/50">Sign in to the office</p>
+      <p className="mt-1 mb-6 text-sm text-muted">Sign in to the office</p>
       <Suspense fallback={null}>
         <LoginForm />
       </Suspense>
-      <p className="mt-4 text-xs text-bark/45">
+      <p className="mt-4 text-xs text-faint">
         Accounts are created by the owner in Supabase. There is no public sign-up —
         this is a business tool, not a website.
       </p>

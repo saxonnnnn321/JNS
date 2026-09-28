@@ -27,8 +27,8 @@ export function QuoteButtons({
   );
 
   return (
-    <div className="mb-4 rounded-lg border border-black/10 p-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-bark/50">
+    <div className="mb-4 rounded-lg border border-line p-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted">
         The quote
       </p>
 
@@ -44,7 +44,7 @@ export function QuoteButtons({
           href={`/api/job/${jobId}/quote`}
           target="_blank"
           rel="noreferrer"
-          className="rounded-lg border border-black/15 px-4 py-2 text-xs hover:border-leaf"
+          className="rounded-lg border border-line px-4 py-2 text-xs hover:border-leaf"
         >
           View it
         </a>
@@ -55,7 +55,7 @@ export function QuoteButtons({
             <button
               type="submit"
               disabled={sending}
-              className="rounded-lg border border-leaf px-4 py-2 text-xs font-medium text-leaf hover:bg-leaf-soft disabled:border-bark/20 disabled:text-bark/30"
+              className="rounded-lg border border-leaf px-4 py-2 text-xs font-medium text-leaf hover:bg-leaf-soft disabled:border-line disabled:text-faint"
             >
               {sending ? 'Sending…' : `Email to ${customerEmail}`}
             </button>
@@ -64,13 +64,13 @@ export function QuoteButtons({
       </div>
 
       {!customerEmail && (
-        <p className="mt-2 text-xs text-bark/45">
+        <p className="mt-2 text-xs text-faint">
           No email on file for them, so it cannot be sent from here. Download
           it and send it however you like.
         </p>
       )}
       {customerEmail && !emailReady && (
-        <p className="mt-2 text-xs text-bark/45">
+        <p className="mt-2 text-xs text-faint">
           Email is not connected yet — download it and send it yourself.
         </p>
       )}

@@ -1,5 +1,14 @@
 import Link from 'next/link';
-import { card, legend, FrequencyTag, Stat } from '@/components/ui';
+import {
+  btnGo,
+  btnPrimary,
+  card,
+  EmptyState,
+  legend,
+  FrequencyTag,
+  PageHeader,
+  Stat,
+} from '@/components/ui';
 import { formatMinutes, formatMoney } from '@/lib/format';
 import { formatBusinessDate } from '@/lib/dates';
 import {
@@ -48,31 +57,37 @@ export default async function TodayPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-bold">
-          {dayName(date)}{' '}
-          <span className="text-bark/40">{formatBusinessDate(date)}</span>
-        </h1>
-        <Link href="/quotes/new" className="text-sm font-medium text-leaf hover:underline">
+      <PageHeader
+        title={
+          <>
+            {dayName(date)}{' '}
+            <span className="font-bold text-faint">{formatBusinessDate(date)}</span>
+          </>
+        }
+        sub={
+          stops.length > 0
+            ? `${stops.length} stop${stops.length === 1 ? '' : 's'} to get through`
+            : 'Nothing booked in today'
+        }
+      >
+        <Link href="/quotes/new" className={btnPrimary}>
           + New quote
         </Link>
-      </div>
+      </PageHeader>
 
       {isEmpty && (
-        <div className={`${card} mt-5`}>
-          <p className="font-semibold">Nothing here yet.</p>
-          <p className="mt-1 text-sm text-bark/60">
-            Add your customers and the round builds itself — today&rsquo;s jobs,
-            the week ahead and what you are owed all come from their standing
-            plans.
-          </p>
-          <Link
-            href="/customers/new"
-            className="mt-3 inline-block rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90"
-          >
-            Add your first customer
-          </Link>
-        </div>
+        <EmptyState
+          title="Nothing here yet."
+          action={
+            <Link href="/customers/new" className={btnPrimary}>
+              Add your first customer
+            </Link>
+          }
+        >
+          Add your customers and the round builds itself — today&rsquo;s jobs,
+          the week ahead and what you are owed all come from their standing
+          plans.
+        </EmptyState>
       )}
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -91,20 +106,21 @@ export default async function TodayPage() {
           label="Unbilled"
           value={formatMoney(unbilledCents)}
           hint={`${unbilled.length} finished, not invoiced`}
+          tone={unbilledCents > 0 ? 'hivis' : 'leaf'}
         />
       </div>
 
       <section className="mt-6">
         <h2 className={legend}>Run sheet</h2>
         {stops.length === 0 ? (
-          <p className={`${card} mt-2 text-sm text-bark/60`}>
+          <p className={`${card} mt-2 text-sm text-muted`}>
             Nothing on today. The rest of the week is below.
           </p>
         ) : (
           <ol className="mt-2 space-y-2">
             {stops.map((stop, index) => (
               <li key={`${stop.plan.id}-${stop.date}`} className={`${card} flex gap-4`}>
-                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-leaf-soft text-sm font-semibold text-leaf">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-leaf-soft font-display text-base font-extrabold text-leaf">
                   {index + 1}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -115,14 +131,14 @@ export default async function TodayPage() {
                     >
                       {stop.customer.name}
                     </Link>
-                    <span className="font-semibold text-leaf">
+                    <span className="tnum font-display text-lg font-extrabold text-leaf">
                       {formatMoney(stop.plan.priceCents)}
                     </span>
                   </div>
-                  <p className="text-sm text-bark/70">
+                  <p className="text-sm text-ink">
                     {stop.property.addressLine}, {stop.property.suburb}
                   </p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-bark/50">
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                     <FrequencyTag frequency={stop.plan.frequency} />
                     <span>{formatMinutes(stop.plan.estimatedMinutes)}</span>
                     {stop.customer.phone && <span>· {stop.customer.phone}</span>}
@@ -139,12 +155,12 @@ export default async function TodayPage() {
                     <form action={undoVisit} className="mt-2 flex items-center gap-3">
                       <input type="hidden" name="planId" value={stop.plan.id} />
                       <input type="hidden" name="visitDate" value={stop.date} />
-                      <span className="text-xs font-semibold text-leaf">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-leaf px-3 py-1 text-xs font-bold text-white">
                         ✓ Done
                       </span>
                       <button
                         type="submit"
-                        className="text-xs text-bark/40 hover:text-bark"
+                        className="text-xs text-faint hover:text-bark"
                       >
                         undo
                       </button>
@@ -161,13 +177,10 @@ export default async function TodayPage() {
                         inputMode="numeric"
                         placeholder={`${stop.plan.estimatedMinutes} min`}
                         aria-label="How long it actually took, in minutes"
-                        className="w-24 rounded-lg border border-black/15 px-2 py-1.5 text-xs outline-none focus:border-leaf"
+                        className="w-24 rounded-lg border border-line px-2 py-1.5 text-xs outline-none focus:border-leaf"
                       />
-                      <button
-                        type="submit"
-                        className="min-h-9 rounded-lg border border-leaf px-4 text-xs font-medium text-leaf hover:bg-leaf-soft"
-                      >
-                        Tick off
+                      <button type="submit" className={btnGo}>
+                        ✓ Tick off
                       </button>
                     </form>
                   )}
@@ -190,11 +203,11 @@ export default async function TodayPage() {
                 <div key={d} className={card}>
                   <p className="text-sm font-semibold">
                     {dayName(d)}{' '}
-                    <span className="font-normal text-bark/40">
+                    <span className="font-normal text-faint">
                       {dayStops.length} job{dayStops.length === 1 ? '' : 's'}
                     </span>
                   </p>
-                  <ul className="mt-2 space-y-1 text-xs text-bark/70">
+                  <ul className="mt-2 space-y-1 text-xs text-ink">
                     {dayStops.map((s) => (
                       <li key={s.plan.id}>
                         {s.property.suburb} — {s.customer.name}
@@ -221,7 +234,7 @@ export default async function TodayPage() {
             {accuracy.medianOverrunMinutes >= 0 ? '+' : ''}
             {Math.round(accuracy.medianOverrunMinutes)} minutes a job.
           </p>
-          <p className="mt-1 text-xs text-bark/50">
+          <p className="mt-1 text-xs text-muted">
             This is the number that eventually replaces the guesses in the rate
             card with measured figures. Not enough visits yet to act on.
           </p>

@@ -4,9 +4,8 @@ import { useActionState, useState } from 'react';
 import { saveQuote, type SaveQuoteResult } from '../actions';
 import { formatMoney } from '@/lib/format';
 import type { QuoteOption } from '@/lib/types';
+import { input } from '@/components/ui';
 
-const input =
-  'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
 
 /**
  * Save the quote against a customer, so it stops being a PDF and starts
@@ -106,7 +105,7 @@ export function SaveQuote({
       <button
         type="submit"
         disabled={pending || !customer.name.trim()}
-        className="mt-3 w-full rounded-lg border border-leaf px-5 py-3 text-sm font-medium text-leaf hover:bg-leaf-soft disabled:cursor-not-allowed disabled:border-bark/20 disabled:text-bark/30"
+        className="mt-3 w-full rounded-lg border border-leaf px-5 py-3 text-sm font-medium text-leaf hover:bg-leaf-soft disabled:cursor-not-allowed disabled:border-line disabled:text-faint"
       >
         {pending
           ? 'Saving…'
@@ -115,7 +114,7 @@ export function SaveQuote({
             : `Save as a job at ${formatMoney(option.totalCents)}`}
       </button>
       {!customer.name.trim() && (
-        <p className="mt-2 text-xs text-bark/45">Needs a customer name.</p>
+        <p className="mt-2 text-xs text-faint">Needs a customer name.</p>
       )}
       {result?.error && (
         <p className="mt-2 text-xs text-red-600">{result.error}</p>

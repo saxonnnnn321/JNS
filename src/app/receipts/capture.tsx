@@ -4,9 +4,8 @@ import { useActionState, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { saveReceipt, type ReceiptResult } from './actions';
 import { rechargePlan } from '@/lib/receipts/recharge';
+import { input } from '@/components/ui';
 
-const input =
-  'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
 
 /**
  * Photograph a receipt and file it against a customer.
@@ -124,7 +123,7 @@ export function ReceiptCapture({
       <input type="hidden" name="storagePath" value={storagePath} />
 
       {noPhoto ? (
-        <div className="rounded-xl border border-dashed border-black/15 p-4 text-center">
+        <div className="rounded-xl border border-dashed border-line p-4 text-center">
           <p className="text-sm font-medium">No photo — amount only</p>
           <button
             type="button"
@@ -139,7 +138,7 @@ export function ReceiptCapture({
           <span className="text-base font-semibold text-leaf">
             {uploading ? 'Uploading…' : 'Photograph the receipt'}
           </span>
-          <span className="mt-1 text-xs text-bark/50">
+          <span className="mt-1 text-xs text-muted">
             Opens the camera. Lay it flat and get the total in frame.
           </span>
           <input
@@ -161,7 +160,7 @@ export function ReceiptCapture({
           <img
             src={preview ?? ''}
             alt="The receipt"
-            className="h-32 w-24 rounded-lg border border-black/10 object-cover"
+            className="h-32 w-24 rounded-lg border border-line object-cover"
           />
           <button
             type="button"
@@ -169,7 +168,7 @@ export function ReceiptCapture({
               setStoragePath('');
               setPreview(null);
             }}
-            className="text-xs text-bark/45 hover:text-bark"
+            className="text-xs text-faint hover:text-bark"
           >
             Take a different one
           </button>
@@ -180,7 +179,7 @@ export function ReceiptCapture({
         <button
           type="button"
           onClick={() => setNoPhoto(true)}
-          className="mt-2 text-xs text-bark/50 hover:text-bark"
+          className="mt-2 text-xs text-muted hover:text-bark"
         >
           No receipt? Just put the amount in →
         </button>
@@ -238,7 +237,7 @@ export function ReceiptCapture({
 
           {customerId && jobsForCustomer.length > 0 && (
             <label className="mt-3 block text-sm">
-              Against which job <span className="text-bark/40">(optional)</span>
+              Against which job <span className="text-faint">(optional)</span>
               <select
                 name="jobId"
                 className={input}
@@ -253,7 +252,7 @@ export function ReceiptCapture({
                   </option>
                 ))}
               </select>
-              <span className="mt-1 block text-xs text-bark/45">
+              <span className="mt-1 block text-xs text-faint">
                 On a cost-plus job this adds to what the job is worth.
               </span>
             </label>
@@ -270,9 +269,9 @@ export function ReceiptCapture({
                   disabled={billedByJob}
                   className="mt-1"
                 />
-                <span className={billedByJob ? 'text-bark/40' : undefined}>
+                <span className={billedByJob ? 'text-faint' : undefined}>
                   Charge it back to them
-                  <span className="block text-xs text-bark/45">
+                  <span className="block text-xs text-faint">
                     Adds it to their next invoice automatically. Untick if you
                     are absorbing it.
                   </span>
@@ -281,7 +280,7 @@ export function ReceiptCapture({
               {/* Ticking this AND picking a cost-plus job used to bill the
                   same purchase twice. Now the job wins and says so. */}
               {billedByJob && (
-                <p className="mt-2 rounded-lg bg-leaf-soft p-2 text-xs text-bark/70">
+                <p className="mt-2 rounded-lg bg-leaf-soft p-2 text-xs text-ink">
                   {plan.because} No separate charge line is added, or they
                   would pay for it twice.
                 </p>
@@ -301,7 +300,7 @@ export function ReceiptCapture({
           <button
             type="submit"
             disabled={saving}
-            className="mt-4 w-full rounded-lg bg-leaf px-5 py-3 text-sm font-semibold text-white hover:bg-leaf/90 disabled:bg-bark/20"
+            className="mt-4 w-full rounded-lg bg-leaf px-5 py-3 text-sm font-semibold text-white hover:bg-leaf/90 disabled:bg-ink/10"
           >
             {saving ? 'Saving…' : 'Save receipt'}
           </button>

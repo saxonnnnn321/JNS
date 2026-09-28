@@ -8,13 +8,10 @@ import { MicButton } from '@/components/mic-button';
 import { useDictation } from '@/lib/voice/use-dictation';
 import { tidyAddress } from '@/lib/voice/speech';
 import type { PropertyLookupResult } from '@/lib/property/lookup';
+import { btnPrimary as primary, input } from '@/components/ui';
 
-const card = 'rounded-xl border border-black/10 bg-white p-4 sm:p-5';
-const legend = 'text-xs font-semibold uppercase tracking-wider text-bark/50';
-const input =
-  'mt-1 w-full rounded-lg border border-black/15 px-3 py-2 text-sm outline-none focus:border-leaf focus:ring-2 focus:ring-leaf/20';
-const primary =
-  'rounded-lg bg-leaf px-5 py-2.5 text-sm font-medium text-white hover:bg-leaf/90 disabled:cursor-not-allowed disabled:bg-bark/20';
+const card = 'rounded-xl border border-line bg-white p-4 sm:p-5';
+const legend = 'text-xs font-semibold uppercase tracking-wider text-muted';
 
 export default function NewCustomerPage() {
   const [result, submit, pending] = useActionState<FormResult, FormData>(
@@ -92,11 +89,11 @@ export default function NewCustomerPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
-      <Link href="/customers" className="text-sm text-bark/50 hover:text-bark">
+      <Link href="/customers" className="text-sm text-muted hover:text-bark">
         ← Customers
       </Link>
       <h1 className="mt-2 text-2xl font-bold">Add a customer</h1>
-      <p className="mt-1 text-sm text-bark/60">
+      <p className="mt-1 text-sm text-muted">
         Name and address are all that is needed. Add a standing plan if they
         are going on the round.
       </p>
@@ -174,7 +171,7 @@ export default function NewCustomerPage() {
               type="button"
               onClick={() => void measure()}
               disabled={looking || !addressLine.trim()}
-              className="rounded-lg border border-leaf px-4 py-2 text-sm font-medium text-leaf hover:bg-leaf-soft disabled:cursor-not-allowed disabled:border-bark/20 disabled:text-bark/30"
+              className="rounded-lg border border-leaf px-4 py-2 text-sm font-medium text-leaf hover:bg-leaf-soft disabled:cursor-not-allowed disabled:border-line disabled:text-faint"
             >
               {looking ? 'Measuring…' : 'Measure the block'}
             </button>
@@ -191,7 +188,7 @@ export default function NewCustomerPage() {
             </label>
           </div>
           {lookupNote && (
-            <p className="mt-2 text-xs text-bark/60">{lookupNote}</p>
+            <p className="mt-2 text-xs text-muted">{lookupNote}</p>
           )}
 
           <label className="mt-3 block text-sm">
@@ -256,7 +253,7 @@ export default function NewCustomerPage() {
                     className={input}
                     defaultValue={businessDate()}
                   />
-                  <span className="mt-1 block text-xs text-bark/45">
+                  <span className="mt-1 block text-xs text-faint">
                     Sets the weekday every later visit lands on.
                   </span>
                 </label>
@@ -282,7 +279,7 @@ export default function NewCustomerPage() {
           <button type="submit" className={primary} disabled={pending}>
             {pending ? 'Saving…' : 'Add customer'}
           </button>
-          <Link href="/customers" className="text-sm text-bark/50 hover:text-bark">
+          <Link href="/customers" className="text-sm text-muted hover:text-bark">
             Cancel
           </Link>
         </div>

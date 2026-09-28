@@ -22,18 +22,18 @@ export default async function SplitPage({
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <Link href={`/timesheet?from=${from}&to=${to}`} className="text-sm text-bark/50 hover:text-bark">
+      <Link href={`/timesheet?from=${from}&to=${to}`} className="text-sm text-muted hover:text-bark">
         ← Timesheet
       </Link>
       <h1 className="mt-2 text-2xl font-bold">The split</h1>
-      <p className="mt-1 text-sm text-bark/60">
+      <p className="mt-1 text-sm text-muted">
         {formatBusinessDate(from)} – {formatBusinessDate(to)}
       </p>
 
       {books.notConfigured ? (
         <div className={`${card} mt-5`}>
           <p className="font-semibold">Nothing to split yet.</p>
-          <p className="mt-1 text-sm text-bark/60">
+          <p className="mt-1 text-sm text-muted">
             Run migration 0004 in Supabase, then log some hours.
           </p>
         </div>
@@ -92,9 +92,9 @@ export default async function SplitPage({
                 </thead>
                 <tbody>
                   {split.partners.map((partner) => (
-                    <tr key={partner.id} className="border-t border-black/5">
+                    <tr key={partner.id} className="border-t border-line">
                       <td className="py-2 font-medium">{partner.name}</td>
-                      <td className="py-2 text-right text-bark/60">
+                      <td className="py-2 text-right text-muted">
                         {formatMinutes(partner.minutesWorked)}
                       </td>
                       <td className="py-2 text-right">{formatMoney(partner.wageCents)}</td>
@@ -106,7 +106,7 @@ export default async function SplitPage({
                       <td className="py-2 text-right font-semibold">
                         {formatMoney(partner.earnedCents)}
                       </td>
-                      <td className="py-2 text-right text-bark/60">
+                      <td className="py-2 text-right text-muted">
                         {formatMoney(partner.drawnCents)}
                       </td>
                       <td
@@ -122,7 +122,7 @@ export default async function SplitPage({
                 </tbody>
               </table>
             </div>
-            <p className="mt-2 text-xs text-bark/50">
+            <p className="mt-2 text-xs text-muted">
               A negative balance means that partner has taken more than they
               earned this period and owes it back. A positive one means the
               business still owes them.
@@ -140,14 +140,14 @@ export default async function SplitPage({
                   {split.settlement.fromName} pays {split.settlement.toName}{' '}
                   {formatMoney(split.settlement.amountCents)}
                 </p>
-                <p className="mt-1 text-sm text-bark/70">
+                <p className="mt-1 text-sm text-ink">
                   That is the one payment that leaves you both level for this
                   period. Anything still outstanding after it is between a
                   partner and the business, not between the two of you.
                 </p>
               </>
             ) : (
-              <p className="mt-2 text-sm text-bark/70">
+              <p className="mt-2 text-sm text-ink">
                 {split.partners.every((p) => p.balanceCents === 0)
                   ? 'Dead even. Nobody owes anybody.'
                   : 'No payment between you two is needed — any balance is with the business rather than with each other.'}
@@ -158,22 +158,22 @@ export default async function SplitPage({
           {/* ---------- how it works ---------- */}
           <section className={`${card} mt-6 text-sm`}>
             <p className={legend}>Why it is worked out this way</p>
-            <p className="mt-2 text-bark/70">
+            <p className="mt-2 text-ink">
               You are paid for two different things, and keeping them apart is
               what makes an uneven week fair.
             </p>
-            <p className="mt-2 text-bark/70">
+            <p className="mt-2 text-ink">
               <b>A wage for the hours you did.</b> Unequal on purpose. Work ten
               hours more than the other bloke and you are paid for ten hours
               more — not a cent more than that.
             </p>
-            <p className="mt-2 text-bark/70">
+            <p className="mt-2 text-ink">
               <b>A share of the profit for owning the business.</b> Split by
               ownership, normally half each, and nothing to do with who swung
               the whipper snipper. You both own the mower whether you pushed it
               that week or not.
             </p>
-            <p className="mt-2 text-xs text-bark/50">
+            <p className="mt-2 text-xs text-muted">
               Income counts visits marked done, priced from their standing
               plan, plus anything logged by hand. A quiet week where wages
               outrun income shows a negative profit share, which you both wear
@@ -202,9 +202,9 @@ function Line({
   negative?: boolean;
 }) {
   return (
-    <div className={rule ? 'border-t border-black/10 pt-2' : ''}>
+    <div className={rule ? 'border-t border-line pt-2' : ''}>
       <div className="flex items-baseline justify-between gap-4">
-        <dt className={strong ? 'font-semibold' : 'text-bark/70'}>{label}</dt>
+        <dt className={strong ? 'font-semibold' : 'text-ink'}>{label}</dt>
         <dd
           className={`shrink-0 tabular-nums ${strong ? 'font-bold' : ''} ${
             negative ? 'text-red-600' : strong ? 'text-leaf' : ''
@@ -213,7 +213,7 @@ function Line({
           {value}
         </dd>
       </div>
-      {hint && <p className="mt-0.5 text-xs text-bark/45">{hint}</p>}
+      {hint && <p className="mt-0.5 text-xs text-faint">{hint}</p>}
     </div>
   );
 }
